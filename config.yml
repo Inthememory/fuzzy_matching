@@ -16,5 +16,8 @@ unknown_brands: ["AUTRES MARQUES", "AUTRE MARQUE", "NON RENSEIGNE", "NULL", "0",
 
 slug_replacements : [["&", "et"]]
 
-classification_levels: ['0', '1', '2']
+classification_levels: 
+  - 0
+  - 1
+  - 2
 classification_most_relevant_level: 2

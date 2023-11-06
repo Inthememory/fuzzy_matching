@@ -30,5 +30,5 @@ def tfidf(
 
 
 def pca(dataset, n_components):
-    pca = PCA(n_components=n_components)
-    return pca.fit_transform(dataset)
+    pca_ = PCA(n_components=n_components)
+    return pca_.fit_transform(dataset)

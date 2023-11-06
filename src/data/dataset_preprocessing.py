@@ -27,14 +27,19 @@ def datasets_merged_align(datasets, levels):
         .drop([f"brand_desc_slug_{i}" for i, _ in enumerate(datasets)])
         .explode("brand_desc_slug")
         .filter(pl.col("brand_desc_slug").is_not_null())
+        .collect()
     )
 
 
 def datasets_merged_vertical(datasets):
-    return pl.concat(
-        [dataset.select(pl.col("brand_desc_slug")) for dataset in datasets],
-        how="vertical",
-    ).unique()
+    return (
+        pl.concat(
+            [dataset.select(pl.col("brand_desc_slug")) for dataset in datasets],
+            how="vertical",
+        )
+        .unique()
+        .collect()
+    )
 
 
 def get_items_list(df, col_id):
@@ -97,7 +102,7 @@ def get_brand_classification_words(
         return list(set(l))
 
     product_classification = datasets_merged_align(
-        datasets, classification_most_relevant_level
+        datasets, [classification_most_relevant_level]
     )
 
     brand_classification = (
@@ -125,9 +130,10 @@ def get_brand_classification_words(
         brand_classification.groupby("brand_desc_slug")
         .agg(pl.col(f"level"))
         .with_columns(pl.col(f"level").apply(convert_to_list_of_words))
-        .with_columns(pl.col(f"level").apply(remove_duplicates))
-        .with_columns(pl.col(f"level").apply(lemmatize_words).alias(f"level_lemmatize"))
-        .with_columns(pl.col(f"level").cast(pl.List(pl.Utf8)).list.join(" "))
+        .with_columns(
+            pl.col(f"level").apply(remove_duplicates).alias(f"level_lemmatize")
+        )
+        # .with_columns(pl.col(f"level").apply(lemmatize_words).alias(f"level_lemmatize"))
         .with_columns(pl.col(f"level_lemmatize").cast(pl.List(pl.Utf8)).list.join(" "))
         .with_columns(
             pl.col(f"level_lemmatize")

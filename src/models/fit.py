@@ -8,7 +8,9 @@ from sklearn.utils.class_weight import compute_class_weight
 def xgb_classifier(X_train_xgb, Y_train_xgb):
     # define positive class scaling factor
     weights = compute_class_weight(
-        "balanced", classes=np.unique(Y_train_xgb), y=Y_train_xgb
+        "balanced",
+        classes=np.unique(Y_train_xgb),
+        y=Y_train_xgb.get_column("target").to_numpy(),
     )
     scale = weights[1] / weights[0]
 

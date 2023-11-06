@@ -1,12 +1,17 @@
 import polars as pl
 
 
-def save_prediction(label, X, Y, model, model_name, path):
+def get_prediction(df_for_prediction, indicators_var, label_var, target_var, model):
+    label = df_for_prediction.select(label_var)
+    X = df_for_prediction.select(indicators_var)
+    inputs = [label, X]
+    if target_var in df_for_prediction.columns:
+        Y = df_for_prediction.select(target_var)
+        inputs.append(Y)
+
     df_prediction = pl.concat(
-        [
-            label,
-            X,
-            Y,
+        inputs
+        + [
             pl.DataFrame(model.predict(X), schema={"prediction": pl.Int64}),
             pl.DataFrame(
                 model.predict_proba(X),
@@ -15,4 +20,4 @@ def save_prediction(label, X, Y, model, model_name, path):
         ],
         how="horizontal",
     )
-    df_prediction.write_csv(f"{path}{model_name}_prediction.csv", separator=";")
+    return df_prediction

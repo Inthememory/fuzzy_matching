@@ -8,9 +8,9 @@ from sklearn.metrics.pairwise import cosine_similarity
 def cosine_similarity_matrix(dataset):
     concat_matrix = csr_matrix(dataset)
     # Compute cosine similarity matrix
-    cosine_similarity = cosine_similarity(concat_matrix)
-    cosine_similarity_csr = csr_matrix(cosine_similarity)
-    return cosine_similarity_csr
+    cossim = cosine_similarity(concat_matrix)
+    cossim_csr = csr_matrix(cossim)
+    return cossim_csr
 
 
 def pairwise_similarity(

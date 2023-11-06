@@ -1,6 +1,8 @@
 import polars as pl
 import numpy as np
 
+from loguru import logger
+
 from sentence_transformers import SentenceTransformer, util
 from scipy.sparse import csr_matrix
 
@@ -21,10 +23,12 @@ from src.features.build_features import (
 
 def classification(datasets, classification_levels):
     # Load dataset processed
-    dataset = get_brand_classification(datasets, classification_levels).collect()
+    dataset = get_brand_classification(datasets, classification_levels)
 
     # Create numerical representation
-    numerical_representation_pca = pca(dataset, n_components=0.80)
+    numerical_representation_pca = pca(
+        dataset.drop("brand_desc_slug"), n_components=0.80
+    )
 
     # Compute cosine_similarity_matrix
     cosine_similarity_csr = cosine_similarity_matrix(numerical_representation_pca)
@@ -37,14 +41,14 @@ def classification(datasets, classification_levels):
 def classification_words(datasets, classification_most_relevant_level, stopwords_list):
     # Load dataset processed
     dataset = get_brand_classification_words(
-        datasets, classification_most_relevant_level
-    ).collect()
+        datasets, classification_most_relevant_level, stopwords_list
+    )
 
     # Create numerical representation
     numerical_representation_tfidf = tfidf(
         dataset,
         "level_slug",
-        analyzer="words",
+        analyzer="word",
         stopwords_list=stopwords_list,
         token_pattern=r"(?u)\b[A-Za-z]{2,}\b",
     )
@@ -62,7 +66,7 @@ def classification_words(datasets, classification_most_relevant_level, stopwords
 
 def sentence_transformer(datasets):
     # Load dataset processed
-    dataset = datasets_merged_vertical(datasets).collect()
+    dataset = datasets_merged_vertical(datasets)
 
     model = SentenceTransformer("all-MiniLM-L6-v2")
 
@@ -83,7 +87,7 @@ def sentence_transformer(datasets):
 
 def syntax_ngram(datasets):
     # Load dataset processed
-    dataset = get_brand_without_space(datasets).collect()
+    dataset = get_brand_without_space(datasets)
 
     # Create numerical representation
     numerical_representation_tfidf = tfidf(
@@ -103,13 +107,13 @@ def syntax_ngram(datasets):
 
 def syntax_words(datasets, stopwords_list):
     # Load dataset processed
-    dataset = datasets_merged_vertical(datasets).collect()
+    dataset = datasets_merged_vertical(datasets)
 
     # Create numerical representation
     numerical_representation_tfidf = tfidf(
         dataset,
-        "level_slug",
-        analyzer="words",
+        "brand_desc_slug",
+        analyzer="word",
         stopwords_list=stopwords_list,
         token_pattern=r"(?u)\b[A-Za-z]{2,}\b",
     )
