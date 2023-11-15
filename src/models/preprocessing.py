@@ -1,47 +1,15 @@
 import polars as pl
 from sklearn.model_selection import train_test_split
 
-from src.features import get_token_set_ratio
+from src.similarity_features import get_token_set_ratio
 
 
-def create_input_for_prediction(
-    df_classification,
-    df_classification_words,
-    df_sentence_transformer,
-    df_syntax_ngram,
-    df_syntax_words,
-):
+def create_input_for_prediction(sdf):
     df_input = (
-        df_syntax_ngram.rename({"similarity": "similarity_syntax_ngram"})
-        .filter(pl.col("similarity_syntax_ngram") > 0.2)
-        .join(
-            df_syntax_words.rename({"similarity": "similarity_syntax_words"}),
-            on=["left_side", "right_side"],
-            how="left",
-        )
-        .join(
-            df_sentence_transformer.rename(
-                {"similarity": "similarity_sentence_transformer"}
-            ),
-            on=["left_side", "right_side"],
-            how="left",
-        )
-        .join(
-            df_classification.rename({"similarity": "similarity_classification"}),
-            on=["left_side", "right_side"],
-            how="left",
-        )
-        .join(
-            df_classification_words.rename(
-                {"similarity": "similarity_classification_words"}
-            ),
-            on=["left_side", "right_side"],
-            how="left",
-        )
+        pl.concat(sdf, how="align")
         .filter(pl.col("left_side") != pl.col("right_side"))
         .fill_null(0)
     )
-
     return get_token_set_ratio(df_input)
 
 

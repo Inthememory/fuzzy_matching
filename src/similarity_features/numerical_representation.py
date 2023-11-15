@@ -6,6 +6,19 @@ from sklearn.decomposition import PCA
 def tfidf(
     dataset, col, analyzer, stopwords_list=None, token_pattern=None, ngram_range=(1, 1)
 ):
+    """_summary_
+
+    Args:
+        dataset (_type_): _description_
+        col (_type_): _description_
+        analyzer (_type_): _description_
+        stopwords_list (_type_, optional): _description_. Defaults to None.
+        token_pattern (_type_, optional): _description_. Defaults to None.
+        ngram_range (tuple, optional): _description_. Defaults to (1, 1).
+
+    Returns:
+        _type_: _description_
+    """
     # Grab the column to tokenise
     dataset = dataset[col]
 
@@ -30,5 +43,14 @@ def tfidf(
 
 
 def pca(dataset, n_components):
+    """_summary_
+
+    Args:
+        dataset (_type_): _description_
+        n_components (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
     pca_ = PCA(n_components=n_components)
     return pca_.fit_transform(dataset)

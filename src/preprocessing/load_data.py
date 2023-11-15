@@ -1,5 +1,15 @@
 import polars as pl
+import string
 from slugify import slugify
+from french_lefff_lemmatizer.french_lefff_lemmatizer import FrenchLefffLemmatizer
+import nltk
+from nltk.corpus import stopwords
+from nltk.stem.snowball import FrenchStemmer
+from french_lefff_lemmatizer.french_lefff_lemmatizer import FrenchLefffLemmatizer
+
+nltk.download("punkt")
+lemmatizer = FrenchLefffLemmatizer()
+stemmer = FrenchStemmer()
 
 
 def slug(x):
@@ -7,6 +17,27 @@ def slug(x):
         return slugify(x, replacements=[["&", "et"]], separator=" ").upper().strip()
     else:
         return None
+
+
+def french_preprocess_sentence(sentence):
+    sentence_w_punct = "".join(
+        [i.lower() for i in sentence if i not in string.punctuation]
+    )
+
+    sentence_w_num = "".join(i for i in sentence_w_punct if not i.isdigit())
+
+    tokenize_sentence = nltk.tokenize.word_tokenize(sentence_w_num)
+
+    words_w_stopwords = [
+        i for i in tokenize_sentence if i not in stopwords.words("french")
+    ]
+
+    words_lemmatize = (lemmatizer.lemmatize(w) for w in words_w_stopwords)
+    # words_lemmatize = (stemmer.stem(w) for w in words_w_stopwords)
+
+    sentence_clean = " ".join(w.upper() for w in words_lemmatize)
+
+    return sentence_clean
 
 
 def bronze(path: str, retailer: str, config: dict) -> pl.DataFrame:
@@ -96,11 +127,28 @@ def gold(path: str, retailer: str, config: dict) -> pl.DataFrame:
     Returns:
         pl.DataFrame: _description_
     """
-    return (
+
+    gold = (
         silver(path, retailer, config)
         .filter(pl.col("level0").is_in(config["retailer"][retailer]["level0"]))
         .filter(
             ~pl.col("level1").is_in(config["retailer"][retailer]["level1_to_delete"])
         )
         .filter(~pl.col("brand_desc_slug").is_in(config["unknown_brands"]))
+        .collect()
+    )
+
+    level_preprocessed = (
+        gold.select(f'level{config["classification_most_relevant_level"]}')
+        .unique()
+        .with_columns(
+            pl.col(f'level{config["classification_most_relevant_level"]}')
+            .apply(french_preprocess_sentence)
+            .alias(f'level{config["classification_most_relevant_level"]}_preprocessed')
+        )
+    )
+    return gold.join(
+        level_preprocessed,
+        f'level{config["classification_most_relevant_level"]}',
+        "left",
     )
