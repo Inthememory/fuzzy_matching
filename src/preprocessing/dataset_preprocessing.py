@@ -118,41 +118,6 @@ def get_brand_classifications_dummies(
 def get_brand_classification_words(
     datasets: list, classification_most_relevant_level: int
 ):
-    def clean_sentence(sentence: str) -> list:
-        """Remove stopwords, punctuation and duplicates
-
-        Args:
-            sentence (str): string to clean
-
-        Returns:
-            list: list containing items from the string cleaned
-        """
-        l = []
-        for word in sentence:
-            l += [
-                "".join(
-                    char.lower()
-                    for char in item
-                    if char not in [string.punctuation] + STOPWORDS_LIST
-                    and len(char) > 0
-                )
-                for item in word.split(" ")
-            ]
-        return list(set(l))
-
-    def lemmatize_words(list_of_words: list) -> list:
-        """Return a list with lemmatized words
-
-        Args:
-            list_of_words (list): list of words to lemmatize
-
-        Returns:
-            list: list of lemmatized words
-        """
-
-        lemmatizer = FrenchLefffLemmatizer()
-        return [lemmatizer.lemmatize(word) for word in list_of_words]
-
     product_classification = get_classifications_by_brand(
         datasets, [classification_most_relevant_level]
     )
@@ -181,13 +146,8 @@ def get_brand_classification_words(
     brand_classificationWords = (
         brand_classification.groupby("brand_desc_slug")
         .agg(pl.col(f"level"))
-        .with_columns(pl.col(f"level").apply(clean_sentence))
-        .with_columns(pl.col(f"level").apply(lemmatize_words).alias(f"level_lemmatize"))
-        .with_columns(pl.col(f"level_lemmatize").cast(pl.List(pl.Utf8)).list.join(" "))
         .with_columns(
-            pl.col(f"level_lemmatize")
-            .apply(lambda x: slugify(x, separator=" ").upper().strip())
-            .alias(f"level_slug")
+            pl.col(f"level").cast(pl.List(pl.Utf8)).list.join(" ").alias("level_slug")
         )
     )
     return brand_classificationWords

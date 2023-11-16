@@ -15,38 +15,34 @@ from src.preprocessing import (
 )
 from src.similarity_features.numerical_representation import pca, tfidf
 from src.similarity_features.similarity import (
-    cosine_similarity_matrix,
     pairwise_similarity,
     get_token_set_ratio,
 )
+from sklearn.decomposition import TruncatedSVD
 
 STOPWORDS_LIST = stopwords.words("english") + stopwords.words("french")
 
 
 def similarity_classification(datasets, classification_levels):
     # Load dataset processed
-    dataset = get_brand_classifications_dummies(datasets, classification_levels)
-    print("dataset shape : ", dataset.shape)
-    print(dataset.head(5))
-
-    # Create numerical representation
-    numerical_representation_pca = pca(
-        dataset.drop("brand_desc_slug"), n_components=0.80
+    dataset_dense = get_brand_classifications_dummies(datasets, classification_levels)
+    print("dataset_dense shape : ", dataset_dense.shape)
+    print(
+        "dataset_dense sparsity :",
+        round(
+            1.0
+            - np.count_nonzero(dataset_dense)
+            / (dataset_dense.shape[0] * dataset_dense.shape[1]),
+            3,
+        ),
     )
-    print("numerical_representation_pca shape : ", numerical_representation_pca.shape)
-    print(numerical_representation_pca)
 
-    # Compute cosine_similarity_matrix
-    cosine_similarity_csr = cosine_similarity_matrix(numerical_representation_pca)
-    print(cosine_similarity_csr)
-    print("shape :", cosine_similarity_csr.shape)
-    print("getnnz :", cosine_similarity_csr.getnnz())
-    print("count_nonzero :", cosine_similarity_csr.count_nonzero())
-    print(cosine_similarity_csr.count_nonzero() / cosine_similarity_csr.getnnz())
+    # Convert dataset to Compressed Sparse Row (CSR) format for better performance
+    dataset_sparse = csr_matrix(dataset_dense.drop("brand_desc_slug"))
 
     # Compute pairwise_similarity
     df_cossim = pairwise_similarity(
-        cosine_similarity_csr, convert_column_to_list(dataset, 0)
+        dataset_sparse, convert_column_to_list(dataset_dense, 0)
     )
     return df_cossim.rename({"similarity": "similarity_classification"})
 
@@ -59,31 +55,25 @@ def similarity_classification_words(datasets, classification_most_relevant_level
     print("dataset shape : ", dataset.shape)
 
     # Create numerical representation
-    numerical_representation_tfidf = tfidf(
-        dataset,
-        "level_slug",
-        analyzer="word",
-        token_pattern=r"(?u)\b[A-Za-z]{2,}\b",
+    dataset_dense = tfidf(
+        dataset, "level_slug", analyzer="word", token_pattern=r"(?u)\b[A-Za-z]{2,}\b"
     )
+    print("dataset_dense shape : ", dataset_dense.shape)
     print(
-        "numerical_representation_tfidf shape : ", numerical_representation_tfidf.shape
+        "dataset_dense sparsity :",
+        round(
+            1.0
+            - np.count_nonzero(dataset_dense)
+            / (dataset_dense.shape[0] * dataset_dense.shape[1]),
+            3,
+        ),
     )
 
-    numerical_representation_pca = pca(
-        numerical_representation_tfidf, n_components=0.80
-    )
-    print("numerical_representation_pca shape : ", numerical_representation_pca.shape)
-
-    # Compute cosine_similarity_matrix
-    cosine_similarity_csr = cosine_similarity_matrix(numerical_representation_pca)
-    print("getnnz :", cosine_similarity_csr.getnnz())
-    print("count_nonzero :", cosine_similarity_csr.count_nonzero())
-    print(cosine_similarity_csr.count_nonzero(), cosine_similarity_csr.getnnz())
+    # Convert dataset to Compressed Sparse Row (CSR) format for better performance
+    dataset_sparse = csr_matrix(dataset_dense)
 
     # Compute pairwise_similarity
-    df_cossim = pairwise_similarity(
-        cosine_similarity_csr, convert_column_to_list(dataset, 0)
-    )
+    df_cossim = pairwise_similarity(dataset_sparse, convert_column_to_list(dataset, 0))
     return df_cossim.rename({"similarity": "similarity_classification_words"})
 
 
@@ -118,28 +108,25 @@ def similarity_syntax_ngram(datasets):
     print("dataset shape : ", dataset.shape)
 
     # Create numerical representation
-    numerical_representation_tfidf = tfidf(
+    dataset_dense = tfidf(
         dataset, "brand_desc_without_space", analyzer="char", ngram_range=(2, 5)
     )
+    print("dataset_dense shape : ", dataset_dense.shape)
     print(
-        "numerical_representation_tfidf shape : ", numerical_representation_tfidf.shape
+        "dataset_dense sparsity :",
+        round(
+            1.0
+            - np.count_nonzero(dataset_dense)
+            / (dataset_dense.shape[0] * dataset_dense.shape[1]),
+            3,
+        ),
     )
 
-    numerical_representation_pca = pca(
-        numerical_representation_tfidf, n_components=0.70
-    )
-    print("numerical_representation_pca shape : ", numerical_representation_pca.shape)
-
-    # Compute cosine_similarity_matrix
-    cosine_similarity_csr = cosine_similarity_matrix(numerical_representation_pca)
-    print("getnnz :", cosine_similarity_csr.getnnz())
-    print("count_nonzero :", cosine_similarity_csr.count_nonzero())
-    print(cosine_similarity_csr.count_nonzero(), cosine_similarity_csr.getnnz())
+    # Convert dataset to Compressed Sparse Row (CSR) format for better performance
+    dataset_sparse = csr_matrix(dataset_dense)
 
     # Compute pairwise_similarity
-    df_cossim = pairwise_similarity(
-        cosine_similarity_csr, convert_column_to_list(dataset, 0)
-    )
+    df_cossim = pairwise_similarity(dataset_sparse, convert_column_to_list(dataset, 0))
     return df_cossim.rename({"similarity": "similarity_syntax_ngram"})
 
 
@@ -149,30 +136,27 @@ def similarity_syntax_words(datasets):
     print("dataset shape : ", dataset.shape)
 
     # Create numerical representation
-    numerical_representation_tfidf = tfidf(
+    dataset_dense = tfidf(
         dataset,
         "brand_desc_slug",
         analyzer="word",
         stopwords_list=STOPWORDS_LIST,
         token_pattern=r"(?u)\b[A-Za-z]{2,}\b",
     )
+    print("dataset_dense shape : ", dataset_dense.shape)
     print(
-        "numerical_representation_tfidf shape : ", numerical_representation_tfidf.shape
+        "dataset_dense sparsity :",
+        round(
+            1.0
+            - np.count_nonzero(dataset_dense)
+            / (dataset_dense.shape[0] * dataset_dense.shape[1]),
+            3,
+        ),
     )
 
-    numerical_representation_pca = pca(
-        numerical_representation_tfidf, n_components=0.70
-    )
-    print("numerical_representation_pca shape : ", numerical_representation_pca.shape)
-
-    # Compute cosine_similarity_matrix
-    cosine_similarity_csr = cosine_similarity_matrix(numerical_representation_pca)
-    print("getnnz :", cosine_similarity_csr.getnnz())
-    print("count_nonzero :", cosine_similarity_csr.count_nonzero())
-    print(cosine_similarity_csr.count_nonzero(), cosine_similarity_csr.getnnz())
+    # Convert dataset to Compressed Sparse Row (CSR) format for better performance
+    dataset_sparse = csr_matrix(dataset_dense)
 
     # Compute pairwise_similarity
-    df_cossim = pairwise_similarity(
-        cosine_similarity_csr, convert_column_to_list(dataset, 0)
-    )
+    df_cossim = pairwise_similarity(dataset_sparse, convert_column_to_list(dataset, 0))
     return df_cossim.rename({"similarity": "similarity_syntax_words"})
