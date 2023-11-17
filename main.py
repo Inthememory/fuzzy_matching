@@ -15,6 +15,8 @@ from src import (
     create_input_for_prediction,
     launch_training,
     get_prediction,
+    pair_brands_with_same_products,
+    group_similar_strings,
 )
 
 DATA_RAW_PATH = "data/raw/"
@@ -59,20 +61,29 @@ if __name__ == "__main__":
     df_similarity_classification = similarity_classification(
         datasets, config["classification_levels"]
     )
+    df_similarity_classification.write_csv(
+        "similarity_classification.csv", separator=";"
+    )
 
     logger.info("similarity_classification_words")
     df_similarity_classification_words = similarity_classification_words(
         datasets, config["classification_most_relevant_level"]
     )
+    df_similarity_classification_words.write_csv(
+        "similarity_classification_words.csv", separator=";"
+    )
 
     logger.info("similarity_semantic")
     df_similarity_semantic = similarity_semantic(datasets)
+    df_similarity_semantic.write_csv("similarity_semantic.csv", separator=";")
 
     logger.info("similarity_syntax_ngram")
     df_similarity_syntax_ngram = similarity_syntax_ngram(datasets)
+    df_similarity_syntax_ngram.write_csv("similarity_syntax_ngram.csv", separator=";")
 
     logger.info("similarity_syntax_words")
     df_similarity_syntax_words = similarity_syntax_words(datasets)
+    df_similarity_syntax_words.write_csv("similarity_syntax_words.csv", separator=";")
 
     df_for_prediction = create_input_for_prediction(
         [
@@ -83,7 +94,6 @@ if __name__ == "__main__":
             df_similarity_syntax_words,
         ]
     )
-    print(df_for_prediction)
 
     indicators_var = [
         "similarity_syntax_ngram",
@@ -115,13 +125,41 @@ if __name__ == "__main__":
 
     # Get predictions
     logger.info("Predict")
-    pickle.load(open(f"{MODELS_PATH}{MODEL_NAME}.pickle", "rb"))
+    xgb_model = pickle.load(open(f"{MODELS_PATH}{MODEL_NAME}.pickle", "rb"))
 
     predictions = get_prediction(
         df_for_prediction, indicators_var, label_var, target_var, xgb_model
     )
+    print(predictions.filter(pl.col("prediction") == 1).shape[0] / predictions.shape[0])
 
     # Save predictions
     predictions.write_csv(
         f"{DATA_PROCESSED_PATH}xgb_model_prediction.csv", separator=";"
     )
+
+    # Create groups
+    logger.info("Create groups")
+    df_input_groups = (
+        pl.concat(
+            [
+                predictions.select(
+                    pl.col("left_side"),
+                    pl.col("right_side"),
+                    pl.col("proba_1").cast(float).alias("similarity"),
+                ),
+                pair_brands_with_same_products(datasets).select(
+                    pl.col("left_side"),
+                    pl.col("right_side"),
+                    pl.lit(1.0).alias("similarity"),
+                ),
+            ]
+        )
+        .groupby(pl.col("left_side"), pl.col("right_side"))
+        .agg(pl.col("similarity").max())
+    )
+    res_group = group_similar_strings(df_input_groups, min_similarity=0.8).sort(
+        by="group_name"
+    )
+    print(res_group.shape, res_group.select("group_name").unique().shape[0])
+
+    res_group.write_csv(f"{DATA_PROCESSED_PATH}res_group_full.csv", separator=";")

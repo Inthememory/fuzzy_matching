@@ -4,6 +4,7 @@ from loguru import logger
 from sentence_transformers import SentenceTransformer, util
 from scipy.sparse import csr_matrix
 from nltk.corpus import stopwords
+from sklearn.metrics.pairwise import cosine_similarity
 
 
 from src.preprocessing import (
@@ -40,9 +41,13 @@ def similarity_classification(datasets, classification_levels):
     # Convert dataset to Compressed Sparse Row (CSR) format for better performance
     dataset_sparse = csr_matrix(dataset_dense.drop("brand_desc_slug"))
 
+    # Calculate cosine similarity
+    # cosine_sim_sparse[i, j] represents the cosine similarity between row i and row j
+    cosine_sim_sparse = cosine_similarity(dataset_sparse, dense_output=False)
+
     # Compute pairwise_similarity
     df_cossim = pairwise_similarity(
-        dataset_sparse, convert_column_to_list(dataset_dense, 0)
+        cosine_sim_sparse, convert_column_to_list(dataset_dense, 0)
     )
     return df_cossim.rename({"similarity": "similarity_classification"})
 
@@ -72,8 +77,14 @@ def similarity_classification_words(datasets, classification_most_relevant_level
     # Convert dataset to Compressed Sparse Row (CSR) format for better performance
     dataset_sparse = csr_matrix(dataset_dense)
 
+    # Calculate cosine similarity
+    # cosine_sim_sparse[i, j] represents the cosine similarity between row i and row j
+    cosine_sim_sparse = cosine_similarity(dataset_sparse, dense_output=False)
+
     # Compute pairwise_similarity
-    df_cossim = pairwise_similarity(dataset_sparse, convert_column_to_list(dataset, 0))
+    df_cossim = pairwise_similarity(
+        cosine_sim_sparse, convert_column_to_list(dataset, 0)
+    )
     return df_cossim.rename({"similarity": "similarity_classification_words"})
 
 
@@ -88,8 +99,9 @@ def similarity_semantic(datasets):
     # Encode all sentences
     embeddings = model.encode(sentences)
 
+    # Calculate cosine similarity
+    # cossim[i, j] represents the cosine similarity between row i and row j
     cossim = np.zeros((len(sentences), len(sentences)))
-
     for i in range(len(sentences)):
         cossim[:, i] = util.cos_sim(embeddings[i], embeddings[:])
 
@@ -125,8 +137,14 @@ def similarity_syntax_ngram(datasets):
     # Convert dataset to Compressed Sparse Row (CSR) format for better performance
     dataset_sparse = csr_matrix(dataset_dense)
 
+    # Calculate cosine similarity
+    # cosine_sim_sparse[i, j] represents the cosine similarity between row i and row j
+    cosine_sim_sparse = cosine_similarity(dataset_sparse, dense_output=False)
+
     # Compute pairwise_similarity
-    df_cossim = pairwise_similarity(dataset_sparse, convert_column_to_list(dataset, 0))
+    df_cossim = pairwise_similarity(
+        cosine_sim_sparse, convert_column_to_list(dataset, 0)
+    )
     return df_cossim.rename({"similarity": "similarity_syntax_ngram"})
 
 
@@ -157,6 +175,12 @@ def similarity_syntax_words(datasets):
     # Convert dataset to Compressed Sparse Row (CSR) format for better performance
     dataset_sparse = csr_matrix(dataset_dense)
 
+    # Calculate cosine similarity
+    # cosine_sim_sparse[i, j] represents the cosine similarity between row i and row j
+    cosine_sim_sparse = cosine_similarity(dataset_sparse, dense_output=False)
+
     # Compute pairwise_similarity
-    df_cossim = pairwise_similarity(dataset_sparse, convert_column_to_list(dataset, 0))
+    df_cossim = pairwise_similarity(
+        cosine_sim_sparse, convert_column_to_list(dataset, 0)
+    )
     return df_cossim.rename({"similarity": "similarity_syntax_words"})

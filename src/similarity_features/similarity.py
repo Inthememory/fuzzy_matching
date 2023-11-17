@@ -2,11 +2,10 @@ import polars as pl
 import numpy as np
 from fuzzywuzzy import fuzz
 from scipy.sparse import csr_matrix
-from sklearn.metrics.pairwise import cosine_similarity
 
 
 def pairwise_similarity(
-    dataset_sparse: csr_matrix, items: list, top_n_matches: int = None
+    cosine_sim_sparse: csr_matrix, items: list, top_n_matches: int = None
 ) -> pl.DataFrame:
     """_summary_
 
@@ -18,9 +17,6 @@ def pairwise_similarity(
     Returns:
         pl.DataFrame: _description_
     """
-    # Calculate cosine similarity
-    # cosine_sim_sparse[i, j] represents the cosine similarity between row i and row j
-    cosine_sim_sparse = cosine_similarity(dataset_sparse, dense_output=False)
 
     non_zeros = cosine_sim_sparse.nonzero()
     sparserows = non_zeros[0]

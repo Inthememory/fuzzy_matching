@@ -1,4 +1,8 @@
-from src.preprocessing import gold, french_preprocess_sentence
+from src.preprocessing import (
+    gold,
+    french_preprocess_sentence,
+    pair_brands_with_same_products,
+)
 
 from src.similarity_features import (
     similarity_classification,
@@ -12,3 +16,4 @@ from src.models import (
     launch_training,
     get_prediction,
 )
+from src.group import group_similar_strings

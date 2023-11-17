@@ -1,4 +1,5 @@
 from loguru import logger
+import polars as pl
 from sklearn.metrics import confusion_matrix, roc_auc_score, log_loss
 
 from src.models.preprocessing import label_dataset, get_train_test
@@ -42,14 +43,27 @@ def launch_training(
     )
     train_Logger.info("Performance train set")
 
-    log_loss_test, roc_auc_score_test = get_model_performance(
-        X_train, Y_train, xgb_model
-    )
+    log_loss_test, roc_auc_score_test = get_model_performance(X_test, Y_test, xgb_model)
     test_Logger = logger.bind(log_loss=log_loss_test, roc_auc_score=roc_auc_score_test)
     test_Logger.info("Performance test set")
 
-    confusion_matrix_test = get_confusion_matrix(X_train, Y_train, xgb_model)
+    confusion_matrix_test = get_confusion_matrix(X_test, Y_test, xgb_model)
     confusion_matrix_Logger = logger.bind(confusion_matrix=confusion_matrix_test)
     confusion_matrix_Logger.info("confusion_matrix")
 
+    df_prediction = pl.concat(
+        [
+            label_test,
+            Y_test,
+            pl.DataFrame(xgb_model.predict(X_test), schema={"prediction": pl.Int64}),
+            pl.DataFrame(
+                xgb_model.predict_proba(X_test),
+                schema={"proba_0": pl.Float64, "proba_1": pl.Float64},
+            ),
+        ],
+        how="horizontal",
+    )
+    df_prediction.write_csv(
+        f"data/processed/xgb_model_prediction_test.csv", separator=";"
+    )
     return xgb_model
