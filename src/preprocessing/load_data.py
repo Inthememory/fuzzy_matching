@@ -19,21 +19,21 @@ def slug(x):
         return None
 
 
-def french_preprocess_sentence(sentence):
+def french_preprocess_sentence(sentence, with_digit=False):
     sentence_w_punct = "".join(
         [i.lower() for i in sentence if i not in string.punctuation]
     )
-
-    sentence_w_num = "".join(i for i in sentence_w_punct if not i.isdigit())
-
-    tokenize_sentence = nltk.tokenize.word_tokenize(sentence_w_num)
+    if with_digit:
+        tokenize_sentence = nltk.tokenize.word_tokenize(sentence_w_punct)
+    else:
+        sentence_w_num = "".join(i for i in sentence_w_punct if not i.isdigit())
+        tokenize_sentence = nltk.tokenize.word_tokenize(sentence_w_num)
 
     words_w_stopwords = [
         i for i in tokenize_sentence if i not in stopwords.words("french")
     ]
 
     words_lemmatize = (lemmatizer.lemmatize(w) for w in words_w_stopwords)
-    # words_lemmatize = (stemmer.stem(w) for w in words_w_stopwords)
 
     sentence_clean = " ".join(w.upper() for w in words_lemmatize)
 

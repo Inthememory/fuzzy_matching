@@ -94,7 +94,7 @@ def similarity_semantic(datasets):
 
     model = SentenceTransformer("all-MiniLM-L6-v2")
 
-    sentences = convert_column_to_list(dataset, 0)
+    sentences = convert_column_to_list(dataset, 2)
 
     # Encode all sentences
     embeddings = model.encode(sentences)
@@ -105,7 +105,8 @@ def similarity_semantic(datasets):
     for i in range(len(sentences)):
         cossim[:, i] = util.cos_sim(embeddings[i], embeddings[:])
 
-    df_cossim = pairwise_similarity(csr_matrix(cossim), sentences)
+    brand_slug = convert_column_to_list(dataset, 0)
+    df_cossim = pairwise_similarity(csr_matrix(cossim), brand_slug)
     df_cossim = df_cossim.sort(by=["similarity"], descending=True)
     return df_cossim.select(
         "left_side",
@@ -121,7 +122,7 @@ def similarity_syntax_ngram(datasets):
 
     # Create numerical representation
     dataset_dense = tfidf(
-        dataset, "brand_desc_without_space", analyzer="char", ngram_range=(2, 5)
+        dataset, "brand_desc_without_space", analyzer="char", ngram_range=(2, 3)
     )
     print("dataset_dense shape : ", dataset_dense.shape)
     print(
@@ -156,7 +157,7 @@ def similarity_syntax_words(datasets):
     # Create numerical representation
     dataset_dense = tfidf(
         dataset,
-        "brand_desc_slug",
+        "brand_desc_slug_reduced_lem",
         analyzer="word",
         stopwords_list=STOPWORDS_LIST,
         token_pattern=r"(?u)\b[A-Za-z]{2,}\b",

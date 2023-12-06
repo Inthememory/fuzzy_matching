@@ -1,23 +1,21 @@
 import polars as pl
 
 
-def get_prediction(df_for_prediction, indicators_var, label_var, target_var, model):
-    label = df_for_prediction.select(label_var)
-    X = df_for_prediction.select(indicators_var)
-    inputs = [label, X]
-    if target_var in df_for_prediction.columns:
-        Y = df_for_prediction.select(target_var)
-        inputs.append(Y)
-
+def export_prediction(inputs, target_prediction, proba_prediction, set_name):
     df_prediction = pl.concat(
         inputs
         + [
-            pl.DataFrame(model.predict(X), schema={"prediction": pl.Int64}),
+            pl.DataFrame(target_prediction, schema={"prediction": pl.Int64}),
             pl.DataFrame(
-                model.predict_proba(X),
+                proba_prediction,
                 schema={"proba_0": pl.Float64, "proba_1": pl.Float64},
             ),
         ],
         how="horizontal",
     )
+
+    df_prediction.write_csv(
+        f"data/processed/xgb_model_prediction_{set_name}.csv", separator=";"
+    )
+
     return df_prediction

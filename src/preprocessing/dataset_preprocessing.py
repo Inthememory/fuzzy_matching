@@ -4,8 +4,55 @@ from slugify import slugify
 from nltk.corpus import stopwords
 from itertools import combinations
 from french_lefff_lemmatizer.french_lefff_lemmatizer import FrenchLefffLemmatizer
+from src.preprocessing import french_preprocess_sentence
 
 STOPWORDS_LIST = stopwords.words("english") + stopwords.words("french")
+GENERIC_WORDS = [
+    "classique",
+    "original",
+    "origine",
+    "special",
+    "selection",
+    "artisanal",
+    "brasserie",
+    "conserverie",
+    "biscuiterie",
+    "confiserie",
+    "laboratoire",
+    "fromagerie",
+    "charcuterie",
+    "domaine",
+    "chateau",
+    "maison",
+    "casa",
+    "creperie",
+    "ferme",
+    "vergers",
+    "cafe",
+    "salaisons",
+    "moulin",
+    "traiteur",
+    "rucher",
+    "jardin",
+    "pasta",
+    "saveurs",
+    "delices",
+    "petit",
+    "saint",
+    "gourmand",
+    "gourmet",
+    "bio",
+    "pere",
+    "france",
+    "equitable",
+]
+
+
+def remove_generic_words(string):
+    tokens = list(string.split(" "))
+    return list(
+        dict.fromkeys([token for token in tokens if token.lower() not in GENERIC_WORDS])
+    )
 
 
 def get_classifications_by_brand(datasets: list, levels: list) -> pl.DataFrame:
@@ -40,6 +87,8 @@ def get_classifications_by_brand(datasets: list, levels: list) -> pl.DataFrame:
         .drop([f"brand_desc_slug_{i}" for i, _ in enumerate(datasets)])
         .explode("brand_desc_slug")
         .filter(pl.col("brand_desc_slug").is_not_null())
+        .drop("product_id")
+        .unique()
     )
 
 
@@ -52,10 +101,29 @@ def concat_brands_slug(datasets: list) -> pl.DataFrame:
     Returns:
         pl.Dataframe: dataframe gathering brands slugified
     """
-    return pl.concat(
-        [dataset.select(pl.col("brand_desc_slug")) for dataset in datasets],
-        how="vertical",
-    ).unique()
+    return (
+        pl.concat(
+            [dataset.select(pl.col("brand_desc_slug")) for dataset in datasets],
+            how="vertical",
+        )
+        .unique()
+        .with_columns(
+            pl.col("brand_desc_slug")
+            .apply(lambda x: remove_generic_words(x))
+            .alias("brand_desc_slug_reduced")
+        )
+        .with_columns(
+            pl.col(f"brand_desc_slug_reduced").cast(pl.List(pl.Utf8)).list.join(" ")
+        )
+        .with_columns(
+            pl.col("brand_desc_slug_reduced")
+            .apply(lambda x: french_preprocess_sentence(x, with_digit=True))
+            .alias("brand_desc_slug_reduced_lem")
+        )
+        .select(
+            "brand_desc_slug", "brand_desc_slug_reduced", "brand_desc_slug_reduced_lem"
+        )
+    )
 
 
 def convert_column_to_list(df: pl.DataFrame, col_id: int) -> list:
@@ -164,11 +232,11 @@ def get_brand_without_space(datasets: list) -> pl.DataFrame:
     return (
         concat_brands_slug(datasets)
         .with_columns(
-            pl.col("brand_desc_slug")
+            pl.col("brand_desc_slug_reduced_lem")
             .apply(lambda x: slugify(x, separator=""))
             .alias("brand_desc_without_space")
         )
-        .select("brand_desc_slug", "brand_desc_without_space")
+        .select("brand_desc_slug", pl.col("brand_desc_without_space").str.strip())
     )
 
 

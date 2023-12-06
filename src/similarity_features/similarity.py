@@ -2,6 +2,47 @@ import polars as pl
 import numpy as np
 from fuzzywuzzy import fuzz
 from scipy.sparse import csr_matrix
+from src.preprocessing import remove_generic_words
+
+GENERIC_WORDS = [
+    "classique",
+    "original",
+    "origine",
+    "spécial",
+    "selection",
+    "artisanal",
+    "brasserie",
+    "conserverie",
+    "biscuiterie",
+    "confiserie",
+    "laboratoire",
+    "fromagerie",
+    "charcuterie",
+    "domaine",
+    "chateau",
+    "maison",
+    "casa",
+    "creperie",
+    "ferme",
+    "vergers",
+    "cafe",
+    "salaisons",
+    "moulin",
+    "traiteur",
+    "rucher",
+    "jardin",
+    "pasta",
+    "saveurs",
+    "delices",
+    "petit",
+    "saint",
+    "gourmand",
+    "gourmet",
+    "bio",
+    "pere",
+    "france",
+    "equitable",
+]
 
 
 def pairwise_similarity(
@@ -10,9 +51,9 @@ def pairwise_similarity(
     """_summary_
 
     Args:
-        sparse_matrix (csr_matrix): _description_
-        name_vector (list): _description_
-        top (_type_, optional): _description_. Defaults to None.
+        cosine_sim_sparse (csr_matrix): _description_
+        items (list): _description_
+        top_n_matches (_type_, optional): _description_. Defaults to None.
 
     Returns:
         pl.DataFrame: _description_
@@ -71,12 +112,32 @@ def get_token_set_ratio(dataset: pl.DataFrame) -> pl.DataFrame:
     """
     return (
         dataset.with_columns(
-            pl.struct(pl.col(["left_side", "right_side"])).alias("comb")
+            pl.col("left_side")
+            .apply(lambda x: remove_generic_words(x))
+            .alias("left_side_reduced")
+        )
+        .with_columns(
+            pl.col(f"left_side_reduced").cast(pl.List(pl.Utf8)).list.join(" ")
+        )
+        .with_columns(
+            pl.col("right_side")
+            .apply(lambda x: remove_generic_words(x))
+            .alias("right_side_reduced")
+        )
+        .with_columns(
+            pl.col(f"right_side_reduced").cast(pl.List(pl.Utf8)).list.join(" ")
+        )
+        .with_columns(
+            pl.struct(pl.col(["left_side_reduced", "right_side_reduced"])).alias("comb")
         )
         .with_columns(
             pl.col("comb")
-            .apply(lambda df: fuzz.token_set_ratio(df["left_side"], df["right_side"]))
+            .apply(
+                lambda df: fuzz.token_set_ratio(
+                    df["left_side_reduced"], df["right_side_reduced"]
+                )
+            )
             .alias("token_set_ratio")
         )
-        .drop("comb")
+        .drop("comb", "left_side_reduced", "right_side_reduced")
     )

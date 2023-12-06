@@ -100,3 +100,72 @@ def group_similar_strings(
     return pl.DataFrame(
         list(zip(groups.keys(), groups.values())), schema=["name", "group_name"]
     )
+
+
+def get_nb_products_by_brand(datasets: list) -> pl.DataFrame:
+    """Create a dataframe containing the number of products by brand sulgified.
+
+    Args:
+        datasets (list): list of datasets containing products, brands and classifications
+
+    Returns:
+        pl.Dataframe: dataframe listing brand slugified and products
+    """
+    return (
+        pl.concat(
+            [
+                dataset.select(
+                    pl.col("product_id"),
+                    pl.col("brand_desc_slug"),
+                    pl.lit(f"{i}").alias("retailer_id"),
+                )
+                for i, dataset in enumerate(datasets)
+            ],
+            how="vertical",
+        )
+        .unique()
+        .groupby("brand_desc_slug")
+        .agg(
+            [
+                pl.count("product_id").alias("count"),
+                pl.min("retailer_id").alias("retailer_id"),
+            ]
+        )
+    )
+
+
+def add_master_brand(datasets: list, res_group: pl.DataFrame) -> pl.DataFrame:
+    """Add master brand_desc_slug for each group of brands
+
+    Args:
+        datasets (list): list of datasets containing products, brands
+        res_group (pl.DataFrame): dataframe containing the group_name for each brand
+
+    Returns:
+        pl.DataFrame: dataframe containing the group_name and the master brand for each brand
+    """
+    master_brand_nb_products = (
+        res_group.select("group_name", pl.col("name").alias("brand_desc_slug"))
+        .join(
+            get_nb_products_by_brand(datasets).select("brand_desc_slug", "count"),
+            "brand_desc_slug",
+            "left",
+        )
+        .sort(["count"], descending=[True])
+        .unique(subset=["group_name"], keep="first", maintain_order=True)
+        .select(
+            "group_name", pl.col("brand_desc_slug").alias("master_brand_nb_products")
+        )
+    )
+
+    master_brand_origin = (
+        res_group.select("group_name", pl.col("name").alias("brand_desc_slug"))
+        .join(get_nb_products_by_brand(datasets), "brand_desc_slug", "left")
+        .sort(["retailer_id", "count"], descending=[False, True])
+        .unique(subset=["group_name"], keep="first", maintain_order=True)
+        .select("group_name", pl.col("brand_desc_slug").alias("master_brand_origin"))
+    )
+
+    return res_group.join(master_brand_nb_products, ["group_name"], "left").join(
+        master_brand_origin, ["group_name"], "left"
+    )

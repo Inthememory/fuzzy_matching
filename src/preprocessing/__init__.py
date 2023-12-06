@@ -6,4 +6,5 @@ from src.preprocessing.dataset_preprocessing import (
     get_brand_classification_words,
     get_brand_without_space,
     pair_brands_with_same_products,
+    remove_generic_words,
 )

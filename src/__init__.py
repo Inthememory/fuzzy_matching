@@ -2,6 +2,8 @@ from src.preprocessing import (
     gold,
     french_preprocess_sentence,
     pair_brands_with_same_products,
+    concat_brands_slug,
+    get_brand_without_space,
 )
 
 from src.similarity_features import (
@@ -14,6 +16,7 @@ from src.similarity_features import (
 from src.models import (
     create_input_for_prediction,
     launch_training,
-    get_prediction,
+    export_prediction,
+    evaluate_model,
 )
-from src.group import group_similar_strings
+from src.group import group_similar_strings, add_master_brand
