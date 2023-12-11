@@ -1,6 +1,18 @@
 import polars as pl
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.decomposition import PCA
+
+
+def convert_column_to_list(df: pl.DataFrame, col: int) -> list:
+    """Convert column of a polars dataframe to a python list
+
+    Args:
+        df (pl.Dataframe): polars dataframe containg the column to extract
+        col_id (int): id of the column to convert
+
+    Returns:
+        list: list extract from the dataframe
+    """
+    return df.select(col).to_series().to_list()
 
 
 def tfidf(
@@ -40,17 +52,3 @@ def tfidf(
     )
 
     return df_tfidfvect
-
-
-def pca(dataset, n_components):
-    """_summary_
-
-    Args:
-        dataset (_type_): _description_
-        n_components (_type_): _description_
-
-    Returns:
-        _type_: _description_
-    """
-    pca_ = PCA(n_components=n_components)
-    return pca_.fit_transform(dataset)

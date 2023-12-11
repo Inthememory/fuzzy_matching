@@ -1,14 +1,13 @@
-from loguru import logger
-
-from src.models.preprocessing import create_input_for_prediction
-from src.models.evaluation import evaluate_model
-from src.models.prediction import export_prediction
-
-from loguru import logger
 import polars as pl
 from sklearn.metrics import confusion_matrix, roc_auc_score, log_loss
 
-from src.models.preprocessing import label_dataset, get_train_test
+from src.models.preprocessing import (
+    create_input_for_prediction,
+    label_dataset,
+    get_train_test,
+)
+from src.models.evaluation import evaluate_model
+from src.models.prediction import get_predictions
 from src.models.fit import xgb_classifier
 
 
@@ -31,11 +30,16 @@ def launch_training(
     xgb_model = xgb_classifier(X_train, Y_train)
 
     # Predict
-    df_prediction = export_prediction(
-        [label_test, X_test, Y_test],
-        xgb_model.predict(X_test),
-        xgb_model.predict_proba(X_test),
-        "test",
+    df_prediction = pl.concat(
+        [label_test, X_test, Y_test]
+        + [
+            pl.DataFrame(xgb_model.predict(X_test), schema={"prediction": pl.Int64}),
+            pl.DataFrame(
+                xgb_model.predict_proba(X_test),
+                schema={"proba_0": pl.Float64, "proba_1": pl.Float64},
+            ),
+        ],
+        how="horizontal",
     )
 
     # Performances
@@ -47,4 +51,4 @@ def launch_training(
         xgb_model, X_test, Y_test, "test"
     )
 
-    return xgb_model
+    return xgb_model, df_prediction

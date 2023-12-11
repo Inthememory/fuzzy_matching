@@ -1,9 +1,5 @@
 from loguru import logger
-import polars as pl
 from sklearn.metrics import confusion_matrix, roc_auc_score, log_loss
-
-from src.models.preprocessing import label_dataset, get_train_test
-from src.models.fit import xgb_classifier
 
 
 def evaluate_model(model, X, Y, set_name):

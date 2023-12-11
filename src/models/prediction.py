@@ -1,21 +1,29 @@
 import polars as pl
+from typing import Union
+import xgboost as xgb
+import yaml
 
 
-def export_prediction(inputs, target_prediction, proba_prediction, set_name):
+def get_predictions(model, dataset: pl.DataFrame, config: yaml):
+    X = dataset.select(config["indicators_var"])
+    inputs = [X]
+    if (
+        config["label_var"][0] in dataset.columns
+        and config["label_var"][1] in dataset.columns
+    ):
+        inputs.append(dataset.select(config["label_var"]))
+    if config["target_var"] in dataset.columns:
+        inputs.append(dataset.select(config["target_var"]))
+
     df_prediction = pl.concat(
         inputs
         + [
-            pl.DataFrame(target_prediction, schema={"prediction": pl.Int64}),
+            pl.DataFrame(model.predict(X), schema={"prediction": pl.Int64}),
             pl.DataFrame(
-                proba_prediction,
+                model.predict_proba(X),
                 schema={"proba_0": pl.Float64, "proba_1": pl.Float64},
             ),
         ],
         how="horizontal",
     )
-
-    df_prediction.write_csv(
-        f"data/processed/xgb_model_prediction_{set_name}.csv", separator=";"
-    )
-
     return df_prediction
