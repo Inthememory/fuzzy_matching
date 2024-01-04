@@ -20,7 +20,11 @@ retailer:
     nb_levels: 4
     level0: ['CONFORT DE LA MAISON', 'BOULANGERIE/PATISSERIE', 'HOMME', 'FEMME', 'MICRO INFORMATIQUE', 'POISSONNERIE', 'PAPETERIE', 'PEM', 'ACCESSOIRES', 'PARFUMERIE HYGIENE', 'RADIOTELEPHONIE', 'ENFANT', 'JEUX VIDEO ET LOGICIELS', 'AUTO', 'JOUET SPORT', 'BEBE', 'EPICERIE', 'CHAUSSURE', 'PRESSE', 'PARAPHARMACIE', 'FRUITS ET LEGUMES', 'DROGUERIE', 'BRICOLAGE', 'PHOTO COMMUNICATION', 'LIBRAIRIE', 'GEM', 'IMAGE ET SON', 'LINGE DE MAISON', 'NON AFFECTE', 'BOUCHERIE VOLAILLE', 'CHARCUT.TRAITEUR', 'JARDIN ET ANIMALERIE', 'VIDEO', 'CAFETERIA ESPACE RESTAURATION', 'MUSIQUE', 'BIJOUTERIE', 'BOISSONS', 'P.L.S.']
     level1_to_delete: 
-      - "VINS"
+      - "VINS"  
+  new_brand:
+    nb_levels: 3
+    level0: []
+    level1_to_delete: []
 
 unknown_brands: 
 - "AUTRES MARQUES"
@@ -38,18 +42,31 @@ unknown_brands:
 
 generic_words : ["classique", "original", "origine",  "selection", "artisanal", "brasserie", "conserverie", "biscuiterie", "confiserie", "laboratoire", "fromagerie", "charcuterie", "domaine", "chateau", "maison", "casa", "creperie", "ferme", "vergers", "cafe", "salaisons", "moulin", "traiteur", "rucher", "jardin", "pasta", "saveurs", "delices", "petit", "saint", "gourmand", "gourmet", "bio", "pere", "france", "equitable", "special", 'recette']
 
-sl_replacements : [["&", "et"], ["1", "un "], ["2", "deux "], ["3", "trois "], ["4", "quatre "], ["5", "cinq "], ["6", "six "], ["7", "sept "], ["8", "huit "], ["9", "neuf "], ["10", "dix "]]
+sl_replacements : 
+- ["&", "et"]
+- ["1", "un "]
+- ["2", "deux "]
+- ["3", "trois "]
+- ["4", "quatre "]
+- ["5", "cinq "]
+- ["6", "six "]
+- ["7", "sept "]
+- ["8", "huit "]
+- ["9", "neuf "]
+- ["10", "dix "]
 
 classification_levels: 
   - 0
   - 1
   - 2
 
-classification_most_relevant_level: 2
+classification_most_relevant_levels: 
+- 1
+- 2
 
 indicators_var:
 - "similarity_syntax_ngram"
-- "similarity_classification"
+# - "similarity_classification"
 - "similarity_classification_words"
 - "fuzzy_ratio"
 - "discounted_levenshtein"

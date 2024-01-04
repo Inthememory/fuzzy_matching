@@ -8,7 +8,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 from fuzzywuzzy import fuzz
-from src.distances import DiscountedLevenshtein, FuzzyWuzzyTokenSort
+from fuzzy_matching.distances import DiscountedLevenshtein, FuzzyWuzzyTokenSort
 
 
 class Similarity:    
@@ -121,7 +121,7 @@ class Similarity:
         dense_output: bool = False,
         pairwise: bool = True,
         min_similarity: float = 0.0,
-    ):
+    )->Union[np.array, csr_matrix]:
         """Calculate cosine similarity.
            cosine_sim_sparse[i, j] represents the cosine similarity between row i and row j.
 
@@ -130,7 +130,7 @@ class Similarity:
             pairwise (bool, optional): Compute pairwise dataset if True. Defaults to False.
 
         Returns:
-            _type_: Returns the cosine similarity between samples in X and Y.
+            Union[np.array, csr_matrix]: Returns the cosine similarity between all samples in sparse_dataset.
         """
         # Create a sparse matrix
         self._init_sparse_matrix()
@@ -144,11 +144,11 @@ class Similarity:
             self._init_pairwise_dataset(min_similarity)
         return self.cossim_dataset
 
-    def _init_sparse_matrix(self):
+    def _init_sparse_matrix(self)->Union[np.array, csr_matrix]:
         """Compressed as sparse matrix
 
         Returns:
-            _type_: a sparse matrix
+            Union[np.array, csr_matrix]: a sparse matrix
         """
         # Create sparse_dataset if self.sparse_dataset hasn't already been instantiated
         if not self.sparse_dataset:

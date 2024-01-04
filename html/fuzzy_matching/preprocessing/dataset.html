@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
 <meta name="generator" content="pdoc 0.10.0" />
-<title>src.preprocessing.dataset API documentation</title>
+<title>fuzzy_matching.preprocessing.dataset API documentation</title>
 <meta name="description" content="" />
 <link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/sanitize.min.css" integrity="sha256-PK9q560IAAa6WVRRh76LtCaI8pjTJ2z11v0miyNNjrs=" crossorigin>
 <link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/typography.min.css" integrity="sha256-7l/o7C8jubJiy74VsKTidCy1yBkRtiUGbVkYBylBqUg=" crossorigin>
@@ -19,7 +19,7 @@
 <main>
 <article id="content">
 <header>
-<h1 class="title">Module <code>src.preprocessing.dataset</code></h1>
+<h1 class="title">Module <code>fuzzy_matching.preprocessing.dataset</code></h1>
 </header>
 <section id="section-intro">
 <details class="source">
@@ -272,31 +272,44 @@ class DatasetsMerged:
         return self.brand_classification_dummy
 
     def get_brand_classification_words(
-        self, level: str, lemmatizer, list_stopwords: list = []
+        self, levels: list, lemmatizer, list_stopwords: list = []
     ) -&gt; pl.DataFrame:
         &#34;&#34;&#34;Preprocess level to make comparisons easier
 
         Args:
-            level (str): level to process
+            levels (list): levels to process
             lemmatizer (type): lemmatizer
             list_stopwords (list, optional): list of stopwords. Defaults to [].
 
         Returns:
             pl.Dataframe: _description_
         &#34;&#34;&#34;
-        # Select level to process
-        brands_classification = self.get_brand_classification([level])
-
-        # List levels describing each brand
-        brands_classification_words = (
-            brands_classification.with_columns(
-                pl.concat_list(
-                    [c for c in brands_classification.columns if c.startswith(&#34;level&#34;)]
-                ).alias(f&#34;level&#34;)
+        ## For level in levels list levels describing each brand
+        L = []
+        for level in levels:
+            # Select level to process
+            brands_classification_level = self.get_brand_classification([level])
+            brands_classification_words_level = (
+                brands_classification_level
+                # List levels describing each brand
+                .with_columns(
+                    pl.concat_list(
+                        [
+                            c
+                            for c in brands_classification_level.columns
+                            if c.startswith(&#34;level&#34;)
+                        ]
+                    ).alias(f&#34;level&#34;)
+                )
+                .select(&#34;brand_desc_slug&#34;, &#34;level&#34;)
+                .explode(f&#34;level&#34;)
+                .filter(pl.col(f&#34;level&#34;).is_not_null())
             )
-            .select(&#34;brand_desc_slug&#34;, &#34;level&#34;)
-            .explode(f&#34;level&#34;)
-            .filter(pl.col(f&#34;level&#34;).is_not_null())
+            # Add dataframe to the list of dataframes to merge
+            L.append(brands_classification_words_level)
+
+        brands_classification_words = (
+            pl.concat(L)
             .groupby(&#34;brand_desc_slug&#34;)
             .agg(pl.col(f&#34;level&#34;))
             .with_columns(pl.col(f&#34;level&#34;).cast(pl.List(pl.Utf8)).list.join(&#34; &#34;))
@@ -470,6 +483,19 @@ class DatasetsMerged:
         replacements: list,
         col: str = &#34;brand_desc_slug&#34;,
     ) -&gt; pl.DataFrame:
+        &#34;&#34;&#34;proceed to a pannel of transformations on a column : remove_stopwords, remove_generic_words, lemmatize_sentence, deduplicate_sentence, slugify
+
+        Args:
+            df (pl.DataFrame): _description_
+            lemmatizer (_type_): lemmatizer
+            list_stopwords (list): list of stopwords to remove
+            generic_words (list): list of generic words to remove
+            replacements (list): list of replacements to performe
+            col (str, optional): col. Defaults to &#34;brand_desc_slug&#34;.
+
+        Returns:
+            pl.DataFrame: a dataframe with transformations on the sepcified column performed
+        &#34;&#34;&#34;
         return (
             df.with_columns(
                 pl.col(col)
@@ -507,6 +533,17 @@ class DatasetsMerged:
     def update_level_col(
         df: pl.DataFrame, lemmatizer, list_stopwords: list, col: str = &#34;level&#34;
     ) -&gt; pl.DataFrame:
+        &#34;&#34;&#34;proceed to a pannel of transformations on a column : remove_stopwords, remove_digit, lemmatize_sentence, deduplicate_sentence
+
+        Args:
+            df (pl.DataFrame): _description_
+            lemmatizer (_type_): lemmatizer
+            list_stopwords (list): list_stopwords to remove
+            col (str, optional): col. Defaults to &#34;level&#34;.
+
+        Returns:
+            pl.DataFrame: a dataframe with transformations on the sepcified column performed
+        &#34;&#34;&#34;
         return (
             df.with_columns(
                 pl.col(col)
@@ -521,6 +558,11 @@ class DatasetsMerged:
                     lambda x: DatasetsMerged.lemmatize_sentence(x, lemmatizer)
                 )
             )
+            .with_columns(
+                pl.col(f&#34;{col}_updated&#34;).apply(
+                    lambda x: DatasetsMerged.deduplicate_sentence(x)
+                )
+            )
         )</code></pre>
 </details>
 </section>
@@ -533,7 +575,7 @@ class DatasetsMerged:
 <section>
 <h2 class="section-title" id="header-classes">Classes</h2>
 <dl>
-<dt id="src.preprocessing.dataset.Dataset"><code class="flex name class">
+<dt id="fuzzy_matching.preprocessing.dataset.Dataset"><code class="flex name class">
 <span>class <span class="ident">Dataset</span></span>
 <span>(</span><span>df: polars.dataframe.frame.DataFrame, retailer: str, nb_levels: int, levels_col: str = 'crumb', level0_included: list = [], level1_excluded: list = [], replacements_brand: list = [])</span>
 </code></dt>
@@ -697,7 +739,7 @@ replacements_brand (list) : list of replacement rules e.g. [['|', 'or'], ['%', '
 </details>
 <h3>Static methods</h3>
 <dl>
-<dt id="src.preprocessing.dataset.Dataset.expand_levels"><code class="name flex">
+<dt id="fuzzy_matching.preprocessing.dataset.Dataset.expand_levels"><code class="name flex">
 <span>def <span class="ident">expand_levels</span></span>(<span>df: polars.dataframe.frame.DataFrame, levels_col: str, nb_levels: int) ‑> polars.dataframe.frame.DataFrame</span>
 </code></dt>
 <dd>
@@ -742,7 +784,7 @@ def expand_levels(
     ).drop(levels_col)</code></pre>
 </details>
 </dd>
-<dt id="src.preprocessing.dataset.Dataset.upper_slug"><code class="name flex">
+<dt id="fuzzy_matching.preprocessing.dataset.Dataset.upper_slug"><code class="name flex">
 <span>def <span class="ident">upper_slug</span></span>(<span>sentence: str, replacements: list = [], separator: str = ' ') ‑> str</span>
 </code></dt>
 <dd>
@@ -787,7 +829,7 @@ def upper_slug(sentence: str, replacements: list = [], separator: str = &#34; &#
 </dl>
 <h3>Methods</h3>
 <dl>
-<dt id="src.preprocessing.dataset.Dataset.clean_dataset"><code class="name flex">
+<dt id="fuzzy_matching.preprocessing.dataset.Dataset.clean_dataset"><code class="name flex">
 <span>def <span class="ident">clean_dataset</span></span>(<span>self) ‑> polars.dataframe.frame.DataFrame</span>
 </code></dt>
 <dd>
@@ -853,7 +895,7 @@ def upper_slug(sentence: str, replacements: list = [], separator: str = &#34; &#
     return dataset</code></pre>
 </details>
 </dd>
-<dt id="src.preprocessing.dataset.Dataset.filter_dataset"><code class="name flex">
+<dt id="fuzzy_matching.preprocessing.dataset.Dataset.filter_dataset"><code class="name flex">
 <span>def <span class="ident">filter_dataset</span></span>(<span>self, unknown_brands: list = []) ‑> polars.dataframe.frame.DataFrame</span>
 </code></dt>
 <dd>
@@ -897,7 +939,7 @@ def upper_slug(sentence: str, replacements: list = [], separator: str = &#34; &#
 </dd>
 </dl>
 </dd>
-<dt id="src.preprocessing.dataset.DatasetsMerged"><code class="flex name class">
+<dt id="fuzzy_matching.preprocessing.dataset.DatasetsMerged"><code class="flex name class">
 <span>class <span class="ident">DatasetsMerged</span></span>
 <span>(</span><span>sdf: list)</span>
 </code></dt>
@@ -1003,31 +1045,44 @@ def upper_slug(sentence: str, replacements: list = [], separator: str = &#34; &#
         return self.brand_classification_dummy
 
     def get_brand_classification_words(
-        self, level: str, lemmatizer, list_stopwords: list = []
+        self, levels: list, lemmatizer, list_stopwords: list = []
     ) -&gt; pl.DataFrame:
         &#34;&#34;&#34;Preprocess level to make comparisons easier
 
         Args:
-            level (str): level to process
+            levels (list): levels to process
             lemmatizer (type): lemmatizer
             list_stopwords (list, optional): list of stopwords. Defaults to [].
 
         Returns:
             pl.Dataframe: _description_
         &#34;&#34;&#34;
-        # Select level to process
-        brands_classification = self.get_brand_classification([level])
-
-        # List levels describing each brand
-        brands_classification_words = (
-            brands_classification.with_columns(
-                pl.concat_list(
-                    [c for c in brands_classification.columns if c.startswith(&#34;level&#34;)]
-                ).alias(f&#34;level&#34;)
+        ## For level in levels list levels describing each brand
+        L = []
+        for level in levels:
+            # Select level to process
+            brands_classification_level = self.get_brand_classification([level])
+            brands_classification_words_level = (
+                brands_classification_level
+                # List levels describing each brand
+                .with_columns(
+                    pl.concat_list(
+                        [
+                            c
+                            for c in brands_classification_level.columns
+                            if c.startswith(&#34;level&#34;)
+                        ]
+                    ).alias(f&#34;level&#34;)
+                )
+                .select(&#34;brand_desc_slug&#34;, &#34;level&#34;)
+                .explode(f&#34;level&#34;)
+                .filter(pl.col(f&#34;level&#34;).is_not_null())
             )
-            .select(&#34;brand_desc_slug&#34;, &#34;level&#34;)
-            .explode(f&#34;level&#34;)
-            .filter(pl.col(f&#34;level&#34;).is_not_null())
+            # Add dataframe to the list of dataframes to merge
+            L.append(brands_classification_words_level)
+
+        brands_classification_words = (
+            pl.concat(L)
             .groupby(&#34;brand_desc_slug&#34;)
             .agg(pl.col(f&#34;level&#34;))
             .with_columns(pl.col(f&#34;level&#34;).cast(pl.List(pl.Utf8)).list.join(&#34; &#34;))
@@ -1201,6 +1256,19 @@ def upper_slug(sentence: str, replacements: list = [], separator: str = &#34; &#
         replacements: list,
         col: str = &#34;brand_desc_slug&#34;,
     ) -&gt; pl.DataFrame:
+        &#34;&#34;&#34;proceed to a pannel of transformations on a column : remove_stopwords, remove_generic_words, lemmatize_sentence, deduplicate_sentence, slugify
+
+        Args:
+            df (pl.DataFrame): _description_
+            lemmatizer (_type_): lemmatizer
+            list_stopwords (list): list of stopwords to remove
+            generic_words (list): list of generic words to remove
+            replacements (list): list of replacements to performe
+            col (str, optional): col. Defaults to &#34;brand_desc_slug&#34;.
+
+        Returns:
+            pl.DataFrame: a dataframe with transformations on the sepcified column performed
+        &#34;&#34;&#34;
         return (
             df.with_columns(
                 pl.col(col)
@@ -1238,6 +1306,17 @@ def upper_slug(sentence: str, replacements: list = [], separator: str = &#34; &#
     def update_level_col(
         df: pl.DataFrame, lemmatizer, list_stopwords: list, col: str = &#34;level&#34;
     ) -&gt; pl.DataFrame:
+        &#34;&#34;&#34;proceed to a pannel of transformations on a column : remove_stopwords, remove_digit, lemmatize_sentence, deduplicate_sentence
+
+        Args:
+            df (pl.DataFrame): _description_
+            lemmatizer (_type_): lemmatizer
+            list_stopwords (list): list_stopwords to remove
+            col (str, optional): col. Defaults to &#34;level&#34;.
+
+        Returns:
+            pl.DataFrame: a dataframe with transformations on the sepcified column performed
+        &#34;&#34;&#34;
         return (
             df.with_columns(
                 pl.col(col)
@@ -1252,11 +1331,16 @@ def upper_slug(sentence: str, replacements: list = [], separator: str = &#34; &#
                     lambda x: DatasetsMerged.lemmatize_sentence(x, lemmatizer)
                 )
             )
+            .with_columns(
+                pl.col(f&#34;{col}_updated&#34;).apply(
+                    lambda x: DatasetsMerged.deduplicate_sentence(x)
+                )
+            )
         )</code></pre>
 </details>
 <h3>Static methods</h3>
 <dl>
-<dt id="src.preprocessing.dataset.DatasetsMerged.cross_join"><code class="name flex">
+<dt id="fuzzy_matching.preprocessing.dataset.DatasetsMerged.cross_join"><code class="name flex">
 <span>def <span class="ident">cross_join</span></span>(<span>df: polars.dataframe.frame.DataFrame, cols: list) ‑> polars.dataframe.frame.DataFrame</span>
 </code></dt>
 <dd>
@@ -1296,7 +1380,7 @@ def cross_join(df: pl.DataFrame, cols: list) -&gt; pl.DataFrame:
     )</code></pre>
 </details>
 </dd>
-<dt id="src.preprocessing.dataset.DatasetsMerged.deduplicate_sentence"><code class="name flex">
+<dt id="fuzzy_matching.preprocessing.dataset.DatasetsMerged.deduplicate_sentence"><code class="name flex">
 <span>def <span class="ident">deduplicate_sentence</span></span>(<span>sentence: str) ‑> str</span>
 </code></dt>
 <dd>
@@ -1314,7 +1398,7 @@ def deduplicate_sentence(sentence: str) -&gt; str:
     return &#34; &#34;.join(word.upper() for word in sentence_deduplicated)</code></pre>
 </details>
 </dd>
-<dt id="src.preprocessing.dataset.DatasetsMerged.lemmatize_sentence"><code class="name flex">
+<dt id="fuzzy_matching.preprocessing.dataset.DatasetsMerged.lemmatize_sentence"><code class="name flex">
 <span>def <span class="ident">lemmatize_sentence</span></span>(<span>sentence: str, lemmatizer) ‑> str</span>
 </code></dt>
 <dd>
@@ -1332,7 +1416,7 @@ def lemmatize_sentence(sentence: str, lemmatizer) -&gt; str:
     return &#34; &#34;.join(word.upper() for word in sentence_lemmatized)</code></pre>
 </details>
 </dd>
-<dt id="src.preprocessing.dataset.DatasetsMerged.remove_digit"><code class="name flex">
+<dt id="fuzzy_matching.preprocessing.dataset.DatasetsMerged.remove_digit"><code class="name flex">
 <span>def <span class="ident">remove_digit</span></span>(<span>sentence: str) ‑> str</span>
 </code></dt>
 <dd>
@@ -1347,7 +1431,7 @@ def remove_digit(sentence: str) -&gt; str:
     return sentence_w_num</code></pre>
 </details>
 </dd>
-<dt id="src.preprocessing.dataset.DatasetsMerged.remove_generic_words"><code class="name flex">
+<dt id="fuzzy_matching.preprocessing.dataset.DatasetsMerged.remove_generic_words"><code class="name flex">
 <span>def <span class="ident">remove_generic_words</span></span>(<span>sentence: str, generic_words: list) ‑> str</span>
 </code></dt>
 <dd>
@@ -1365,7 +1449,7 @@ def remove_generic_words(sentence: str, generic_words: list) -&gt; str:
     return &#34; &#34;.join(word.upper() for word in sentence_w_generic_words)</code></pre>
 </details>
 </dd>
-<dt id="src.preprocessing.dataset.DatasetsMerged.remove_punctuation"><code class="name flex">
+<dt id="fuzzy_matching.preprocessing.dataset.DatasetsMerged.remove_punctuation"><code class="name flex">
 <span>def <span class="ident">remove_punctuation</span></span>(<span>sentence: str) ‑> str</span>
 </code></dt>
 <dd>
@@ -1382,7 +1466,7 @@ def remove_punctuation(sentence: str) -&gt; str:
     return sentence_w_punct</code></pre>
 </details>
 </dd>
-<dt id="src.preprocessing.dataset.DatasetsMerged.remove_stopwords"><code class="name flex">
+<dt id="fuzzy_matching.preprocessing.dataset.DatasetsMerged.remove_stopwords"><code class="name flex">
 <span>def <span class="ident">remove_stopwords</span></span>(<span>sentence, list_stopwords: list) ‑> str</span>
 </code></dt>
 <dd>
@@ -1400,11 +1484,31 @@ def remove_stopwords(sentence, list_stopwords: list) -&gt; str:
     return &#34; &#34;.join(word for word in sentence_w_stopwords)</code></pre>
 </details>
 </dd>
-<dt id="src.preprocessing.dataset.DatasetsMerged.update_brand_col"><code class="name flex">
+<dt id="fuzzy_matching.preprocessing.dataset.DatasetsMerged.update_brand_col"><code class="name flex">
 <span>def <span class="ident">update_brand_col</span></span>(<span>df: polars.dataframe.frame.DataFrame, lemmatizer, list_stopwords: list, generic_words: list, replacements: list, col: str = 'brand_desc_slug') ‑> polars.dataframe.frame.DataFrame</span>
 </code></dt>
 <dd>
-<div class="desc"></div>
+<div class="desc"><p>proceed to a pannel of transformations on a column : remove_stopwords, remove_generic_words, lemmatize_sentence, deduplicate_sentence, slugify</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>df</code></strong> :&ensp;<code>pl.DataFrame</code></dt>
+<dd><em>description</em></dd>
+<dt><strong><code>lemmatizer</code></strong> :&ensp;<code>_type_</code></dt>
+<dd>lemmatizer</dd>
+<dt><strong><code>list_stopwords</code></strong> :&ensp;<code>list</code></dt>
+<dd>list of stopwords to remove</dd>
+<dt><strong><code>generic_words</code></strong> :&ensp;<code>list</code></dt>
+<dd>list of generic words to remove</dd>
+<dt><strong><code>replacements</code></strong> :&ensp;<code>list</code></dt>
+<dd>list of replacements to performe</dd>
+<dt><strong><code>col</code></strong> :&ensp;<code>str</code>, optional</dt>
+<dd>col. Defaults to "brand_desc_slug".</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>pl.DataFrame</code></dt>
+<dd>a dataframe with transformations on the sepcified column performed</dd>
+</dl></div>
 <details class="source">
 <summary>
 <span>Expand source code</span>
@@ -1418,6 +1522,19 @@ def update_brand_col(
     replacements: list,
     col: str = &#34;brand_desc_slug&#34;,
 ) -&gt; pl.DataFrame:
+    &#34;&#34;&#34;proceed to a pannel of transformations on a column : remove_stopwords, remove_generic_words, lemmatize_sentence, deduplicate_sentence, slugify
+
+    Args:
+        df (pl.DataFrame): _description_
+        lemmatizer (_type_): lemmatizer
+        list_stopwords (list): list of stopwords to remove
+        generic_words (list): list of generic words to remove
+        replacements (list): list of replacements to performe
+        col (str, optional): col. Defaults to &#34;brand_desc_slug&#34;.
+
+    Returns:
+        pl.DataFrame: a dataframe with transformations on the sepcified column performed
+    &#34;&#34;&#34;
     return (
         df.with_columns(
             pl.col(col)
@@ -1452,11 +1569,27 @@ def update_brand_col(
     )</code></pre>
 </details>
 </dd>
-<dt id="src.preprocessing.dataset.DatasetsMerged.update_level_col"><code class="name flex">
+<dt id="fuzzy_matching.preprocessing.dataset.DatasetsMerged.update_level_col"><code class="name flex">
 <span>def <span class="ident">update_level_col</span></span>(<span>df: polars.dataframe.frame.DataFrame, lemmatizer, list_stopwords: list, col: str = 'level') ‑> polars.dataframe.frame.DataFrame</span>
 </code></dt>
 <dd>
-<div class="desc"></div>
+<div class="desc"><p>proceed to a pannel of transformations on a column : remove_stopwords, remove_digit, lemmatize_sentence, deduplicate_sentence</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>df</code></strong> :&ensp;<code>pl.DataFrame</code></dt>
+<dd><em>description</em></dd>
+<dt><strong><code>lemmatizer</code></strong> :&ensp;<code>_type_</code></dt>
+<dd>lemmatizer</dd>
+<dt><strong><code>list_stopwords</code></strong> :&ensp;<code>list</code></dt>
+<dd>list_stopwords to remove</dd>
+<dt><strong><code>col</code></strong> :&ensp;<code>str</code>, optional</dt>
+<dd>col. Defaults to "level".</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>pl.DataFrame</code></dt>
+<dd>a dataframe with transformations on the sepcified column performed</dd>
+</dl></div>
 <details class="source">
 <summary>
 <span>Expand source code</span>
@@ -1465,6 +1598,17 @@ def update_brand_col(
 def update_level_col(
     df: pl.DataFrame, lemmatizer, list_stopwords: list, col: str = &#34;level&#34;
 ) -&gt; pl.DataFrame:
+    &#34;&#34;&#34;proceed to a pannel of transformations on a column : remove_stopwords, remove_digit, lemmatize_sentence, deduplicate_sentence
+
+    Args:
+        df (pl.DataFrame): _description_
+        lemmatizer (_type_): lemmatizer
+        list_stopwords (list): list_stopwords to remove
+        col (str, optional): col. Defaults to &#34;level&#34;.
+
+    Returns:
+        pl.DataFrame: a dataframe with transformations on the sepcified column performed
+    &#34;&#34;&#34;
     return (
         df.with_columns(
             pl.col(col)
@@ -1479,13 +1623,18 @@ def update_level_col(
                 lambda x: DatasetsMerged.lemmatize_sentence(x, lemmatizer)
             )
         )
+        .with_columns(
+            pl.col(f&#34;{col}_updated&#34;).apply(
+                lambda x: DatasetsMerged.deduplicate_sentence(x)
+            )
+        )
     )</code></pre>
 </details>
 </dd>
 </dl>
 <h3>Methods</h3>
 <dl>
-<dt id="src.preprocessing.dataset.DatasetsMerged.extract_brands"><code class="name flex">
+<dt id="fuzzy_matching.preprocessing.dataset.DatasetsMerged.extract_brands"><code class="name flex">
 <span>def <span class="ident">extract_brands</span></span>(<span>self, lemmatizer, list_stopwords: list = [], generic_words: list = [], replacements: list = []) ‑> polars.dataframe.frame.DataFrame</span>
 </code></dt>
 <dd>
@@ -1542,7 +1691,7 @@ def update_level_col(
     return self.brands_updated</code></pre>
 </details>
 </dd>
-<dt id="src.preprocessing.dataset.DatasetsMerged.get_brand_classification"><code class="name flex">
+<dt id="fuzzy_matching.preprocessing.dataset.DatasetsMerged.get_brand_classification"><code class="name flex">
 <span>def <span class="ident">get_brand_classification</span></span>(<span>self, levels: list) ‑> polars.dataframe.frame.DataFrame</span>
 </code></dt>
 <dd>
@@ -1599,7 +1748,7 @@ def update_level_col(
     )</code></pre>
 </details>
 </dd>
-<dt id="src.preprocessing.dataset.DatasetsMerged.get_brand_classification_dummy"><code class="name flex">
+<dt id="fuzzy_matching.preprocessing.dataset.DatasetsMerged.get_brand_classification_dummy"><code class="name flex">
 <span>def <span class="ident">get_brand_classification_dummy</span></span>(<span>self, levels: list) ‑> polars.dataframe.frame.DataFrame</span>
 </code></dt>
 <dd>
@@ -1664,15 +1813,15 @@ def update_level_col(
     return self.brand_classification_dummy</code></pre>
 </details>
 </dd>
-<dt id="src.preprocessing.dataset.DatasetsMerged.get_brand_classification_words"><code class="name flex">
-<span>def <span class="ident">get_brand_classification_words</span></span>(<span>self, level: str, lemmatizer, list_stopwords: list = []) ‑> polars.dataframe.frame.DataFrame</span>
+<dt id="fuzzy_matching.preprocessing.dataset.DatasetsMerged.get_brand_classification_words"><code class="name flex">
+<span>def <span class="ident">get_brand_classification_words</span></span>(<span>self, levels: list, lemmatizer, list_stopwords: list = []) ‑> polars.dataframe.frame.DataFrame</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Preprocess level to make comparisons easier</p>
 <h2 id="args">Args</h2>
 <dl>
-<dt><strong><code>level</code></strong> :&ensp;<code>str</code></dt>
-<dd>level to process</dd>
+<dt><strong><code>levels</code></strong> :&ensp;<code>list</code></dt>
+<dd>levels to process</dd>
 <dt><strong><code>lemmatizer</code></strong> :&ensp;<code>type</code></dt>
 <dd>lemmatizer</dd>
 <dt><strong><code>list_stopwords</code></strong> :&ensp;<code>list</code>, optional</dt>
@@ -1688,31 +1837,44 @@ def update_level_col(
 <span>Expand source code</span>
 </summary>
 <pre><code class="python">def get_brand_classification_words(
-    self, level: str, lemmatizer, list_stopwords: list = []
+    self, levels: list, lemmatizer, list_stopwords: list = []
 ) -&gt; pl.DataFrame:
     &#34;&#34;&#34;Preprocess level to make comparisons easier
 
     Args:
-        level (str): level to process
+        levels (list): levels to process
         lemmatizer (type): lemmatizer
         list_stopwords (list, optional): list of stopwords. Defaults to [].
 
     Returns:
         pl.Dataframe: _description_
     &#34;&#34;&#34;
-    # Select level to process
-    brands_classification = self.get_brand_classification([level])
-
-    # List levels describing each brand
-    brands_classification_words = (
-        brands_classification.with_columns(
-            pl.concat_list(
-                [c for c in brands_classification.columns if c.startswith(&#34;level&#34;)]
-            ).alias(f&#34;level&#34;)
+    ## For level in levels list levels describing each brand
+    L = []
+    for level in levels:
+        # Select level to process
+        brands_classification_level = self.get_brand_classification([level])
+        brands_classification_words_level = (
+            brands_classification_level
+            # List levels describing each brand
+            .with_columns(
+                pl.concat_list(
+                    [
+                        c
+                        for c in brands_classification_level.columns
+                        if c.startswith(&#34;level&#34;)
+                    ]
+                ).alias(f&#34;level&#34;)
+            )
+            .select(&#34;brand_desc_slug&#34;, &#34;level&#34;)
+            .explode(f&#34;level&#34;)
+            .filter(pl.col(f&#34;level&#34;).is_not_null())
         )
-        .select(&#34;brand_desc_slug&#34;, &#34;level&#34;)
-        .explode(f&#34;level&#34;)
-        .filter(pl.col(f&#34;level&#34;).is_not_null())
+        # Add dataframe to the list of dataframes to merge
+        L.append(brands_classification_words_level)
+
+    brands_classification_words = (
+        pl.concat(L)
         .groupby(&#34;brand_desc_slug&#34;)
         .agg(pl.col(f&#34;level&#34;))
         .with_columns(pl.col(f&#34;level&#34;).cast(pl.List(pl.Utf8)).list.join(&#34; &#34;))
@@ -1726,7 +1888,7 @@ def update_level_col(
     return self.brand_classification_words</code></pre>
 </details>
 </dd>
-<dt id="src.preprocessing.dataset.DatasetsMerged.pair_brands_with_same_products"><code class="name flex">
+<dt id="fuzzy_matching.preprocessing.dataset.DatasetsMerged.pair_brands_with_same_products"><code class="name flex">
 <span>def <span class="ident">pair_brands_with_same_products</span></span>(<span>self) ‑> polars.dataframe.frame.DataFrame</span>
 </code></dt>
 <dd>
@@ -1818,37 +1980,37 @@ def update_level_col(
 <ul id="index">
 <li><h3>Super-module</h3>
 <ul>
-<li><code><a title="src.preprocessing" href="index.html">src.preprocessing</a></code></li>
+<li><code><a title="fuzzy_matching.preprocessing" href="index.html">fuzzy_matching.preprocessing</a></code></li>
 </ul>
 </li>
 <li><h3><a href="#header-classes">Classes</a></h3>
 <ul>
 <li>
-<h4><code><a title="src.preprocessing.dataset.Dataset" href="#src.preprocessing.dataset.Dataset">Dataset</a></code></h4>
+<h4><code><a title="fuzzy_matching.preprocessing.dataset.Dataset" href="#fuzzy_matching.preprocessing.dataset.Dataset">Dataset</a></code></h4>
 <ul class="">
-<li><code><a title="src.preprocessing.dataset.Dataset.clean_dataset" href="#src.preprocessing.dataset.Dataset.clean_dataset">clean_dataset</a></code></li>
-<li><code><a title="src.preprocessing.dataset.Dataset.expand_levels" href="#src.preprocessing.dataset.Dataset.expand_levels">expand_levels</a></code></li>
-<li><code><a title="src.preprocessing.dataset.Dataset.filter_dataset" href="#src.preprocessing.dataset.Dataset.filter_dataset">filter_dataset</a></code></li>
-<li><code><a title="src.preprocessing.dataset.Dataset.upper_slug" href="#src.preprocessing.dataset.Dataset.upper_slug">upper_slug</a></code></li>
+<li><code><a title="fuzzy_matching.preprocessing.dataset.Dataset.clean_dataset" href="#fuzzy_matching.preprocessing.dataset.Dataset.clean_dataset">clean_dataset</a></code></li>
+<li><code><a title="fuzzy_matching.preprocessing.dataset.Dataset.expand_levels" href="#fuzzy_matching.preprocessing.dataset.Dataset.expand_levels">expand_levels</a></code></li>
+<li><code><a title="fuzzy_matching.preprocessing.dataset.Dataset.filter_dataset" href="#fuzzy_matching.preprocessing.dataset.Dataset.filter_dataset">filter_dataset</a></code></li>
+<li><code><a title="fuzzy_matching.preprocessing.dataset.Dataset.upper_slug" href="#fuzzy_matching.preprocessing.dataset.Dataset.upper_slug">upper_slug</a></code></li>
 </ul>
 </li>
 <li>
-<h4><code><a title="src.preprocessing.dataset.DatasetsMerged" href="#src.preprocessing.dataset.DatasetsMerged">DatasetsMerged</a></code></h4>
+<h4><code><a title="fuzzy_matching.preprocessing.dataset.DatasetsMerged" href="#fuzzy_matching.preprocessing.dataset.DatasetsMerged">DatasetsMerged</a></code></h4>
 <ul class="">
-<li><code><a title="src.preprocessing.dataset.DatasetsMerged.cross_join" href="#src.preprocessing.dataset.DatasetsMerged.cross_join">cross_join</a></code></li>
-<li><code><a title="src.preprocessing.dataset.DatasetsMerged.deduplicate_sentence" href="#src.preprocessing.dataset.DatasetsMerged.deduplicate_sentence">deduplicate_sentence</a></code></li>
-<li><code><a title="src.preprocessing.dataset.DatasetsMerged.extract_brands" href="#src.preprocessing.dataset.DatasetsMerged.extract_brands">extract_brands</a></code></li>
-<li><code><a title="src.preprocessing.dataset.DatasetsMerged.get_brand_classification" href="#src.preprocessing.dataset.DatasetsMerged.get_brand_classification">get_brand_classification</a></code></li>
-<li><code><a title="src.preprocessing.dataset.DatasetsMerged.get_brand_classification_dummy" href="#src.preprocessing.dataset.DatasetsMerged.get_brand_classification_dummy">get_brand_classification_dummy</a></code></li>
-<li><code><a title="src.preprocessing.dataset.DatasetsMerged.get_brand_classification_words" href="#src.preprocessing.dataset.DatasetsMerged.get_brand_classification_words">get_brand_classification_words</a></code></li>
-<li><code><a title="src.preprocessing.dataset.DatasetsMerged.lemmatize_sentence" href="#src.preprocessing.dataset.DatasetsMerged.lemmatize_sentence">lemmatize_sentence</a></code></li>
-<li><code><a title="src.preprocessing.dataset.DatasetsMerged.pair_brands_with_same_products" href="#src.preprocessing.dataset.DatasetsMerged.pair_brands_with_same_products">pair_brands_with_same_products</a></code></li>
-<li><code><a title="src.preprocessing.dataset.DatasetsMerged.remove_digit" href="#src.preprocessing.dataset.DatasetsMerged.remove_digit">remove_digit</a></code></li>
-<li><code><a title="src.preprocessing.dataset.DatasetsMerged.remove_generic_words" href="#src.preprocessing.dataset.DatasetsMerged.remove_generic_words">remove_generic_words</a></code></li>
-<li><code><a title="src.preprocessing.dataset.DatasetsMerged.remove_punctuation" href="#src.preprocessing.dataset.DatasetsMerged.remove_punctuation">remove_punctuation</a></code></li>
-<li><code><a title="src.preprocessing.dataset.DatasetsMerged.remove_stopwords" href="#src.preprocessing.dataset.DatasetsMerged.remove_stopwords">remove_stopwords</a></code></li>
-<li><code><a title="src.preprocessing.dataset.DatasetsMerged.update_brand_col" href="#src.preprocessing.dataset.DatasetsMerged.update_brand_col">update_brand_col</a></code></li>
-<li><code><a title="src.preprocessing.dataset.DatasetsMerged.update_level_col" href="#src.preprocessing.dataset.DatasetsMerged.update_level_col">update_level_col</a></code></li>
+<li><code><a title="fuzzy_matching.preprocessing.dataset.DatasetsMerged.cross_join" href="#fuzzy_matching.preprocessing.dataset.DatasetsMerged.cross_join">cross_join</a></code></li>
+<li><code><a title="fuzzy_matching.preprocessing.dataset.DatasetsMerged.deduplicate_sentence" href="#fuzzy_matching.preprocessing.dataset.DatasetsMerged.deduplicate_sentence">deduplicate_sentence</a></code></li>
+<li><code><a title="fuzzy_matching.preprocessing.dataset.DatasetsMerged.extract_brands" href="#fuzzy_matching.preprocessing.dataset.DatasetsMerged.extract_brands">extract_brands</a></code></li>
+<li><code><a title="fuzzy_matching.preprocessing.dataset.DatasetsMerged.get_brand_classification" href="#fuzzy_matching.preprocessing.dataset.DatasetsMerged.get_brand_classification">get_brand_classification</a></code></li>
+<li><code><a title="fuzzy_matching.preprocessing.dataset.DatasetsMerged.get_brand_classification_dummy" href="#fuzzy_matching.preprocessing.dataset.DatasetsMerged.get_brand_classification_dummy">get_brand_classification_dummy</a></code></li>
+<li><code><a title="fuzzy_matching.preprocessing.dataset.DatasetsMerged.get_brand_classification_words" href="#fuzzy_matching.preprocessing.dataset.DatasetsMerged.get_brand_classification_words">get_brand_classification_words</a></code></li>
+<li><code><a title="fuzzy_matching.preprocessing.dataset.DatasetsMerged.lemmatize_sentence" href="#fuzzy_matching.preprocessing.dataset.DatasetsMerged.lemmatize_sentence">lemmatize_sentence</a></code></li>
+<li><code><a title="fuzzy_matching.preprocessing.dataset.DatasetsMerged.pair_brands_with_same_products" href="#fuzzy_matching.preprocessing.dataset.DatasetsMerged.pair_brands_with_same_products">pair_brands_with_same_products</a></code></li>
+<li><code><a title="fuzzy_matching.preprocessing.dataset.DatasetsMerged.remove_digit" href="#fuzzy_matching.preprocessing.dataset.DatasetsMerged.remove_digit">remove_digit</a></code></li>
+<li><code><a title="fuzzy_matching.preprocessing.dataset.DatasetsMerged.remove_generic_words" href="#fuzzy_matching.preprocessing.dataset.DatasetsMerged.remove_generic_words">remove_generic_words</a></code></li>
+<li><code><a title="fuzzy_matching.preprocessing.dataset.DatasetsMerged.remove_punctuation" href="#fuzzy_matching.preprocessing.dataset.DatasetsMerged.remove_punctuation">remove_punctuation</a></code></li>
+<li><code><a title="fuzzy_matching.preprocessing.dataset.DatasetsMerged.remove_stopwords" href="#fuzzy_matching.preprocessing.dataset.DatasetsMerged.remove_stopwords">remove_stopwords</a></code></li>
+<li><code><a title="fuzzy_matching.preprocessing.dataset.DatasetsMerged.update_brand_col" href="#fuzzy_matching.preprocessing.dataset.DatasetsMerged.update_brand_col">update_brand_col</a></code></li>
+<li><code><a title="fuzzy_matching.preprocessing.dataset.DatasetsMerged.update_level_col" href="#fuzzy_matching.preprocessing.dataset.DatasetsMerged.update_level_col">update_level_col</a></code></li>
 </ul>
 </li>
 </ul>

@@ -5,7 +5,7 @@ import yaml
 import argparse
 from loguru import logger
 import pickle
-from src import (
+from fuzzy_matching import (
     launch_training,
     get_predictions,
     evaluate_model,

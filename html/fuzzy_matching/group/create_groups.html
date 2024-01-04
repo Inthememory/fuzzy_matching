@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
 <meta name="generator" content="pdoc 0.10.0" />
-<title>src.group.create_groups API documentation</title>
+<title>fuzzy_matching.group.create_groups API documentation</title>
 <meta name="description" content="" />
 <link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/sanitize.min.css" integrity="sha256-PK9q560IAAa6WVRRh76LtCaI8pjTJ2z11v0miyNNjrs=" crossorigin>
 <link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/typography.min.css" integrity="sha256-7l/o7C8jubJiy74VsKTidCy1yBkRtiUGbVkYBylBqUg=" crossorigin>
@@ -19,7 +19,7 @@
 <main>
 <article id="content">
 <header>
-<h1 class="title">Module <code>src.group.create_groups</code></h1>
+<h1 class="title">Module <code>fuzzy_matching.group.create_groups</code></h1>
 </header>
 <section id="section-intro">
 <details class="source">
@@ -31,111 +31,34 @@ import polars as pl
 import numpy as np
 from typing import Union, Dict
 
-
-def df_to_dict(df: pl.DataFrame, key_col: str, value_col: str) -&gt; Dict[str, int]:
-    &#34;&#34;&#34;
-    Get a Python dict from two columns of a DataFrame
-    If the key column is not unique, the last row is used
-    &#34;&#34;&#34;
-    return dict(df.select(key_col, value_col).iter_rows())
-
-
-def group_similar_strings(
-    df: pl.DataFrame,
+def group_similar_strings( 
+    df: pl.dataframe,
     groups_init: Union[pl.DataFrame, None],
     min_similarity: float = 0.7,
 ) -&gt; pl.DataFrame:
-    &#34;&#34;&#34;_summary_
+    &#34;&#34;&#34;Group stirngs whose probability of similarity is above a certain threshold
 
     Args:
-        df (pl.DataFrame): _description_
-        groups (Union): _description_
-        min_similarity (float, optional): _description_. Defaults to 0.7.
+        df (pl.DataFrame): dataset that contains pairs of strings and probability of similarity between the two
+        groups (Union): previously formed groups
+        min_similarity (float, optional): probability of similarity threshold. Defaults to 0.7.
 
     Returns:
-        pl.DataFrame: _description_
+        pl.DataFrame: a dataframe containing group_ids assigned to each string (each string has a unique group_id)
     &#34;&#34;&#34;
 
     # Instantiate empty dict if groups is None
     if groups_init is None:
         groups = {}
     else:
-        groups = df_to_dict(groups_init, &#34;name&#34;, &#34;group_name&#34;)
+        # Get a Python dict from columns  &#34;name&#34;, &#34;group_name&#34; of groups_init dataframe (e.g. {name1: groupe_name1})
+        groups = dict(groups_init.select( &#34;name&#34;, &#34;group_name&#34;).iter_rows())
 
-    # Instantiate empty dict from group_id imputation
+    # Instantiate empty dict from group_id imputation (groups that will be merged)
     groupId_imputation = {}
 
     # sort dataset to add orphan at the end
     dataset = df.sort([&#34;similarity&#34;], descending=True)
-
-    def create_new_group_id(groups: dict) -&gt; int:
-        &#34;&#34;&#34;_summary_
-
-        Args:
-            groups (dict): _description_
-
-        Returns:
-            int: _description_
-        &#34;&#34;&#34;
-        if len(groups) == 0:
-            return 0
-        else:
-            return max(list(groups.values())) + 1
-
-    def find_group(groups: dict, left_side: str, right_side: str) -&gt; Union[int, tuple]:
-        &#34;&#34;&#34;_summary_
-
-        Args:
-            groups (dict): _description_
-            left_side (str): _description_
-            right_side (str): _description_
-
-        Returns:
-            Union[int, None]: _description_
-        &#34;&#34;&#34;
-        # If either the row or the col string have already been given a group, return that group id.
-        # Otherwise return a new group id
-        if left_side in groups and right_side in groups:
-            return (groups[left_side], groups[right_side])
-        elif left_side in groups:
-            return groups[left_side]
-        elif right_side in groups:
-            return groups[right_side]
-        else:
-            return create_new_group_id(groups)
-
-    def add_pair_to_dict(groups: dict, left_side: str, right_side: str):
-        &#34;&#34;&#34;Assign an group id to both strings (left_side, right_side)
-
-        Args:
-            groups (dict): _description_
-            left_side (str): _description_
-            right_side (str): _description_
-        &#34;&#34;&#34;
-        # first, see if one has already been added
-        group_id = find_group(groups, left_side, right_side)
-        if isinstance(group_id, int):
-            # Once we know the group id, set it as the value for both strings in the dictionnary
-            groups[left_side] = group_id
-            groups[right_side] = group_id
-        elif group_id[0] != group_id[1]:
-            groupId_imputation[group_id[0]] = group_id[1]
-
-    def add_orphan_to_dict(groups: dict, groupId_imputation: dict, string: str):
-        &#34;&#34;&#34;Assign an group id to a string
-
-        Args:
-            groups (dict): _description_
-            string (str): _description_
-        &#34;&#34;&#34;
-        # first, see if string has already been added to groups
-        if string in groups:
-            pass
-        # else add to a new group
-        else:
-            group_id = create_new_group_id(groups)
-            # Once the group id is defined, set it as the value in the dictionnary
-            groups[string] = group_id
 
     # for each left_side and right_side in dataframe if they&#39;re similar add them to the same group
     for left_side, right_side, similarity in zip(
@@ -144,10 +67,10 @@ def group_similar_strings(
         dataset.get_column(&#34;similarity&#34;).to_list(),
     ):
         if similarity &gt;= min_similarity:
-            add_pair_to_dict(groups, left_side, right_side)
+            add_pair_to_dict(groups, groupId_imputation, left_side, right_side)
         else:
-            add_orphan_to_dict(groups, groupId_imputation, left_side)
-            add_orphan_to_dict(groups, groupId_imputation, right_side)
+            add_orphan_to_dict(groups, left_side)
+            add_orphan_to_dict(groups, right_side)
 
     # Iterate through the dictionary items and update the values based on groupId_imputation
     for key, value in groups.items():
@@ -155,12 +78,84 @@ def group_similar_strings(
             # Replace the value with the new value
             groups[key] = groupId_imputation[
                 value
-            ]  # Replace &#39;new_value&#39; with the value you want to set
+            ]  # Replace &#39;new_value&#39; with the value to set
 
     return pl.DataFrame(
         list(zip(groups.keys(), groups.values())), schema=[&#34;name&#34;, &#34;group_name&#34;]
     )
 
+
+def create_new_group_id(groups: dict) -&gt; int:
+    &#34;&#34;&#34;Return a new group_id in an incremental way
+
+    Args:
+        groups (dict): previously formed groups
+
+    Returns:
+        int: new group_id
+    &#34;&#34;&#34;
+    if len(groups) == 0:
+        return 0
+    else:
+        return max(list(groups.values())) + 1
+
+def find_group(groups: dict, left_side: str, right_side: str) -&gt; Union[int, tuple]:
+    &#34;&#34;&#34;Return a group id:
+        - if both strings are new create a new group
+        - if one of the two strings has already received a group_id, return that group id.
+        - if both strings have already received a group_id, return a tuple with tese two ids.
+
+    Args:
+        groups (dict): previously formed groups
+        left_side (str): first string for comparison
+        right_side (str): second string for comparison
+
+    Returns:
+        Union[int, None]: a group_id or a tuple of group_ids
+    &#34;&#34;&#34;
+    # Both strings have already received a group_id, return a tuple with tese two ids
+    if left_side in groups and right_side in groups:
+        return (groups[left_side], groups[right_side])
+    # One of the two strings has already received a group_id, return that group id.
+    elif left_side in groups:
+        return groups[left_side]
+    elif right_side in groups:
+        return groups[right_side]
+    # Create a new group
+    else:
+        return create_new_group_id(groups)
+
+def add_pair_to_dict(groups: dict, groupId_imputation: dict, left_side: str, right_side: str):
+    &#34;&#34;&#34;Assign a group id to two strings (left_side, right_side)
+
+    Args:
+        groups (dict): previously formed groups
+        groupId_imputation (dict): groups to merge
+        left_side (str): first string to which a group must be assigned
+        right_side (str): second string to which a group must be assigned
+    &#34;&#34;&#34;
+    # Get group_id(s) to assign
+    group_id = find_group(groups, left_side, right_side)
+    # if there is a unique group_id, assign it to both strings
+    if isinstance(group_id, int):
+        groups[left_side] = group_id
+        groups[right_side] = group_id
+    # if there are two distinct group_ids, add these two id to a dict as key and value. These groups will merge.
+    elif group_id[0] != group_id[1]:
+        groupId_imputation[group_id[0]] = group_id[1]
+
+def add_orphan_to_dict(groups: dict, string: str):
+    &#34;&#34;&#34;Assign a group id to a string
+
+    Args:
+        groups (dict): previously formed groups
+        string (str): string to which a group must be assigned
+    &#34;&#34;&#34;
+    # If string hasn&#39;t already been added to groups create a new group and set it as the value in the dictionnary
+    if string not in groups:
+        group_id = create_new_group_id(groups)
+        groups[string] = create_new_group_id(groups)
+        
 
 def get_nb_products_by_brand(datasets: list) -&gt; pl.DataFrame:
     &#34;&#34;&#34;Create a dataframe containing the number of products by brand sulgified.
@@ -238,7 +233,7 @@ def add_master_brand(datasets: list, res_group: pl.DataFrame) -&gt; pl.DataFrame
 <section>
 <h2 class="section-title" id="header-functions">Functions</h2>
 <dl>
-<dt id="src.group.create_groups.add_master_brand"><code class="name flex">
+<dt id="fuzzy_matching.group.create_groups.add_master_brand"><code class="name flex">
 <span>def <span class="ident">add_master_brand</span></span>(<span>datasets: list, res_group: polars.dataframe.frame.DataFrame) ‑> polars.dataframe.frame.DataFrame</span>
 </code></dt>
 <dd>
@@ -296,25 +291,163 @@ def add_master_brand(datasets: list, res_group: pl.DataFrame) -&gt; pl.DataFrame
     )</code></pre>
 </details>
 </dd>
-<dt id="src.group.create_groups.df_to_dict"><code class="name flex">
-<span>def <span class="ident">df_to_dict</span></span>(<span>df: polars.dataframe.frame.DataFrame, key_col: str, value_col: str) ‑> Dict[str, int]</span>
+<dt id="fuzzy_matching.group.create_groups.add_orphan_to_dict"><code class="name flex">
+<span>def <span class="ident">add_orphan_to_dict</span></span>(<span>groups: dict, string: str)</span>
 </code></dt>
 <dd>
-<div class="desc"><p>Get a Python dict from two columns of a DataFrame
-If the key column is not unique, the last row is used</p></div>
+<div class="desc"><p>Assign a group id to a string</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>groups</code></strong> :&ensp;<code>dict</code></dt>
+<dd>previously formed groups</dd>
+<dt><strong><code>string</code></strong> :&ensp;<code>str</code></dt>
+<dd>string to which a group must be assigned</dd>
+</dl></div>
 <details class="source">
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def df_to_dict(df: pl.DataFrame, key_col: str, value_col: str) -&gt; Dict[str, int]:
+<pre><code class="python">def add_orphan_to_dict(groups: dict, string: str):
+    &#34;&#34;&#34;Assign a group id to a string
+
+    Args:
+        groups (dict): previously formed groups
+        string (str): string to which a group must be assigned
     &#34;&#34;&#34;
-    Get a Python dict from two columns of a DataFrame
-    If the key column is not unique, the last row is used
-    &#34;&#34;&#34;
-    return dict(df.select(key_col, value_col).iter_rows())</code></pre>
+    # If string hasn&#39;t already been added to groups create a new group and set it as the value in the dictionnary
+    if string not in groups:
+        group_id = create_new_group_id(groups)
+        groups[string] = create_new_group_id(groups)</code></pre>
 </details>
 </dd>
-<dt id="src.group.create_groups.get_nb_products_by_brand"><code class="name flex">
+<dt id="fuzzy_matching.group.create_groups.add_pair_to_dict"><code class="name flex">
+<span>def <span class="ident">add_pair_to_dict</span></span>(<span>groups: dict, groupId_imputation: dict, left_side: str, right_side: str)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Assign a group id to two strings (left_side, right_side)</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>groups</code></strong> :&ensp;<code>dict</code></dt>
+<dd>previously formed groups</dd>
+<dt><strong><code>groupId_imputation</code></strong> :&ensp;<code>dict</code></dt>
+<dd>groups to merge</dd>
+<dt><strong><code>left_side</code></strong> :&ensp;<code>str</code></dt>
+<dd>first string to which a group must be assigned</dd>
+<dt><strong><code>right_side</code></strong> :&ensp;<code>str</code></dt>
+<dd>second string to which a group must be assigned</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def add_pair_to_dict(groups: dict, groupId_imputation: dict, left_side: str, right_side: str):
+    &#34;&#34;&#34;Assign a group id to two strings (left_side, right_side)
+
+    Args:
+        groups (dict): previously formed groups
+        groupId_imputation (dict): groups to merge
+        left_side (str): first string to which a group must be assigned
+        right_side (str): second string to which a group must be assigned
+    &#34;&#34;&#34;
+    # Get group_id(s) to assign
+    group_id = find_group(groups, left_side, right_side)
+    # if there is a unique group_id, assign it to both strings
+    if isinstance(group_id, int):
+        groups[left_side] = group_id
+        groups[right_side] = group_id
+    # if there are two distinct group_ids, add these two id to a dict as key and value. These groups will merge.
+    elif group_id[0] != group_id[1]:
+        groupId_imputation[group_id[0]] = group_id[1]</code></pre>
+</details>
+</dd>
+<dt id="fuzzy_matching.group.create_groups.create_new_group_id"><code class="name flex">
+<span>def <span class="ident">create_new_group_id</span></span>(<span>groups: dict) ‑> int</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Return a new group_id in an incremental way</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>groups</code></strong> :&ensp;<code>dict</code></dt>
+<dd>previously formed groups</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>int</code></dt>
+<dd>new group_id</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def create_new_group_id(groups: dict) -&gt; int:
+    &#34;&#34;&#34;Return a new group_id in an incremental way
+
+    Args:
+        groups (dict): previously formed groups
+
+    Returns:
+        int: new group_id
+    &#34;&#34;&#34;
+    if len(groups) == 0:
+        return 0
+    else:
+        return max(list(groups.values())) + 1</code></pre>
+</details>
+</dd>
+<dt id="fuzzy_matching.group.create_groups.find_group"><code class="name flex">
+<span>def <span class="ident">find_group</span></span>(<span>groups: dict, left_side: str, right_side: str) ‑> Union[int, tuple]</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Return a group id:
+- if both strings are new create a new group
+- if one of the two strings has already received a group_id, return that group id.
+- if both strings have already received a group_id, return a tuple with tese two ids.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>groups</code></strong> :&ensp;<code>dict</code></dt>
+<dd>previously formed groups</dd>
+<dt><strong><code>left_side</code></strong> :&ensp;<code>str</code></dt>
+<dd>first string for comparison</dd>
+<dt><strong><code>right_side</code></strong> :&ensp;<code>str</code></dt>
+<dd>second string for comparison</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>Union[int, None]</code></dt>
+<dd>a group_id or a tuple of group_ids</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def find_group(groups: dict, left_side: str, right_side: str) -&gt; Union[int, tuple]:
+    &#34;&#34;&#34;Return a group id:
+        - if both strings are new create a new group
+        - if one of the two strings has already received a group_id, return that group id.
+        - if both strings have already received a group_id, return a tuple with tese two ids.
+
+    Args:
+        groups (dict): previously formed groups
+        left_side (str): first string for comparison
+        right_side (str): second string for comparison
+
+    Returns:
+        Union[int, None]: a group_id or a tuple of group_ids
+    &#34;&#34;&#34;
+    # Both strings have already received a group_id, return a tuple with tese two ids
+    if left_side in groups and right_side in groups:
+        return (groups[left_side], groups[right_side])
+    # One of the two strings has already received a group_id, return that group id.
+    elif left_side in groups:
+        return groups[left_side]
+    elif right_side in groups:
+        return groups[right_side]
+    # Create a new group
+    else:
+        return create_new_group_id(groups)</code></pre>
+</details>
+</dd>
+<dt id="fuzzy_matching.group.create_groups.get_nb_products_by_brand"><code class="name flex">
 <span>def <span class="ident">get_nb_products_by_brand</span></span>(<span>datasets: list) ‑> polars.dataframe.frame.DataFrame</span>
 </code></dt>
 <dd>
@@ -365,125 +498,57 @@ If the key column is not unique, the last row is used</p></div>
     )</code></pre>
 </details>
 </dd>
-<dt id="src.group.create_groups.group_similar_strings"><code class="name flex">
-<span>def <span class="ident">group_similar_strings</span></span>(<span>df: polars.dataframe.frame.DataFrame, groups_init: Optional[polars.dataframe.frame.DataFrame], min_similarity: float = 0.7) ‑> polars.dataframe.frame.DataFrame</span>
+<dt id="fuzzy_matching.group.create_groups.group_similar_strings"><code class="name flex">
+<span>def <span class="ident">group_similar_strings</span></span>(<span>df: <module 'polars.dataframe' from 'C:\\Users\\audec\\Documents\\<a title="fuzzy_matching" href="../index.html">fuzzy_matching</a>\\venv\\Lib\\site-packages\\polars\\dataframe\\__init__.py'>, groups_init: Optional[polars.dataframe.frame.DataFrame], min_similarity: float = 0.7) ‑> polars.dataframe.frame.DataFrame</span>
 </code></dt>
 <dd>
-<div class="desc"><p><em>summary</em></p>
+<div class="desc"><p>Group stirngs whose probability of similarity is above a certain threshold</p>
 <h2 id="args">Args</h2>
 <dl>
 <dt><strong><code>df</code></strong> :&ensp;<code>pl.DataFrame</code></dt>
-<dd><em>description</em></dd>
+<dd>dataset that contains pairs of strings and probability of similarity between the two</dd>
 <dt><strong><code>groups</code></strong> :&ensp;<code>Union</code></dt>
-<dd><em>description</em></dd>
+<dd>previously formed groups</dd>
 <dt><strong><code>min_similarity</code></strong> :&ensp;<code>float</code>, optional</dt>
-<dd><em>description</em>. Defaults to 0.7.</dd>
+<dd>probability of similarity threshold. Defaults to 0.7.</dd>
 </dl>
 <h2 id="returns">Returns</h2>
 <dl>
 <dt><code>pl.DataFrame</code></dt>
-<dd><em>description</em></dd>
+<dd>a dataframe containing group_ids assigned to each string (each string has a unique group_id)</dd>
 </dl></div>
 <details class="source">
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def group_similar_strings(
-    df: pl.DataFrame,
+<pre><code class="python">def group_similar_strings( 
+    df: pl.dataframe,
     groups_init: Union[pl.DataFrame, None],
     min_similarity: float = 0.7,
 ) -&gt; pl.DataFrame:
-    &#34;&#34;&#34;_summary_
+    &#34;&#34;&#34;Group stirngs whose probability of similarity is above a certain threshold
 
     Args:
-        df (pl.DataFrame): _description_
-        groups (Union): _description_
-        min_similarity (float, optional): _description_. Defaults to 0.7.
+        df (pl.DataFrame): dataset that contains pairs of strings and probability of similarity between the two
+        groups (Union): previously formed groups
+        min_similarity (float, optional): probability of similarity threshold. Defaults to 0.7.
 
     Returns:
-        pl.DataFrame: _description_
+        pl.DataFrame: a dataframe containing group_ids assigned to each string (each string has a unique group_id)
     &#34;&#34;&#34;
 
     # Instantiate empty dict if groups is None
     if groups_init is None:
         groups = {}
     else:
-        groups = df_to_dict(groups_init, &#34;name&#34;, &#34;group_name&#34;)
+        # Get a Python dict from columns  &#34;name&#34;, &#34;group_name&#34; of groups_init dataframe (e.g. {name1: groupe_name1})
+        groups = dict(groups_init.select( &#34;name&#34;, &#34;group_name&#34;).iter_rows())
 
-    # Instantiate empty dict from group_id imputation
+    # Instantiate empty dict from group_id imputation (groups that will be merged)
     groupId_imputation = {}
 
     # sort dataset to add orphan at the end
     dataset = df.sort([&#34;similarity&#34;], descending=True)
-
-    def create_new_group_id(groups: dict) -&gt; int:
-        &#34;&#34;&#34;_summary_
-
-        Args:
-            groups (dict): _description_
-
-        Returns:
-            int: _description_
-        &#34;&#34;&#34;
-        if len(groups) == 0:
-            return 0
-        else:
-            return max(list(groups.values())) + 1
-
-    def find_group(groups: dict, left_side: str, right_side: str) -&gt; Union[int, tuple]:
-        &#34;&#34;&#34;_summary_
-
-        Args:
-            groups (dict): _description_
-            left_side (str): _description_
-            right_side (str): _description_
-
-        Returns:
-            Union[int, None]: _description_
-        &#34;&#34;&#34;
-        # If either the row or the col string have already been given a group, return that group id.
-        # Otherwise return a new group id
-        if left_side in groups and right_side in groups:
-            return (groups[left_side], groups[right_side])
-        elif left_side in groups:
-            return groups[left_side]
-        elif right_side in groups:
-            return groups[right_side]
-        else:
-            return create_new_group_id(groups)
-
-    def add_pair_to_dict(groups: dict, left_side: str, right_side: str):
-        &#34;&#34;&#34;Assign an group id to both strings (left_side, right_side)
-
-        Args:
-            groups (dict): _description_
-            left_side (str): _description_
-            right_side (str): _description_
-        &#34;&#34;&#34;
-        # first, see if one has already been added
-        group_id = find_group(groups, left_side, right_side)
-        if isinstance(group_id, int):
-            # Once we know the group id, set it as the value for both strings in the dictionnary
-            groups[left_side] = group_id
-            groups[right_side] = group_id
-        elif group_id[0] != group_id[1]:
-            groupId_imputation[group_id[0]] = group_id[1]
-
-    def add_orphan_to_dict(groups: dict, groupId_imputation: dict, string: str):
-        &#34;&#34;&#34;Assign an group id to a string
-
-        Args:
-            groups (dict): _description_
-            string (str): _description_
-        &#34;&#34;&#34;
-        # first, see if string has already been added to groups
-        if string in groups:
-            pass
-        # else add to a new group
-        else:
-            group_id = create_new_group_id(groups)
-            # Once the group id is defined, set it as the value in the dictionnary
-            groups[string] = group_id
 
     # for each left_side and right_side in dataframe if they&#39;re similar add them to the same group
     for left_side, right_side, similarity in zip(
@@ -492,10 +557,10 @@ If the key column is not unique, the last row is used</p></div>
         dataset.get_column(&#34;similarity&#34;).to_list(),
     ):
         if similarity &gt;= min_similarity:
-            add_pair_to_dict(groups, left_side, right_side)
+            add_pair_to_dict(groups, groupId_imputation, left_side, right_side)
         else:
-            add_orphan_to_dict(groups, groupId_imputation, left_side)
-            add_orphan_to_dict(groups, groupId_imputation, right_side)
+            add_orphan_to_dict(groups, left_side)
+            add_orphan_to_dict(groups, right_side)
 
     # Iterate through the dictionary items and update the values based on groupId_imputation
     for key, value in groups.items():
@@ -503,7 +568,7 @@ If the key column is not unique, the last row is used</p></div>
             # Replace the value with the new value
             groups[key] = groupId_imputation[
                 value
-            ]  # Replace &#39;new_value&#39; with the value you want to set
+            ]  # Replace &#39;new_value&#39; with the value to set
 
     return pl.DataFrame(
         list(zip(groups.keys(), groups.values())), schema=[&#34;name&#34;, &#34;group_name&#34;]
@@ -523,15 +588,18 @@ If the key column is not unique, the last row is used</p></div>
 <ul id="index">
 <li><h3>Super-module</h3>
 <ul>
-<li><code><a title="src.group" href="index.html">src.group</a></code></li>
+<li><code><a title="fuzzy_matching.group" href="index.html">fuzzy_matching.group</a></code></li>
 </ul>
 </li>
 <li><h3><a href="#header-functions">Functions</a></h3>
 <ul class="">
-<li><code><a title="src.group.create_groups.add_master_brand" href="#src.group.create_groups.add_master_brand">add_master_brand</a></code></li>
-<li><code><a title="src.group.create_groups.df_to_dict" href="#src.group.create_groups.df_to_dict">df_to_dict</a></code></li>
-<li><code><a title="src.group.create_groups.get_nb_products_by_brand" href="#src.group.create_groups.get_nb_products_by_brand">get_nb_products_by_brand</a></code></li>
-<li><code><a title="src.group.create_groups.group_similar_strings" href="#src.group.create_groups.group_similar_strings">group_similar_strings</a></code></li>
+<li><code><a title="fuzzy_matching.group.create_groups.add_master_brand" href="#fuzzy_matching.group.create_groups.add_master_brand">add_master_brand</a></code></li>
+<li><code><a title="fuzzy_matching.group.create_groups.add_orphan_to_dict" href="#fuzzy_matching.group.create_groups.add_orphan_to_dict">add_orphan_to_dict</a></code></li>
+<li><code><a title="fuzzy_matching.group.create_groups.add_pair_to_dict" href="#fuzzy_matching.group.create_groups.add_pair_to_dict">add_pair_to_dict</a></code></li>
+<li><code><a title="fuzzy_matching.group.create_groups.create_new_group_id" href="#fuzzy_matching.group.create_groups.create_new_group_id">create_new_group_id</a></code></li>
+<li><code><a title="fuzzy_matching.group.create_groups.find_group" href="#fuzzy_matching.group.create_groups.find_group">find_group</a></code></li>
+<li><code><a title="fuzzy_matching.group.create_groups.get_nb_products_by_brand" href="#fuzzy_matching.group.create_groups.get_nb_products_by_brand">get_nb_products_by_brand</a></code></li>
+<li><code><a title="fuzzy_matching.group.create_groups.group_similar_strings" href="#fuzzy_matching.group.create_groups.group_similar_strings">group_similar_strings</a></code></li>
 </ul>
 </li>
 </ul>

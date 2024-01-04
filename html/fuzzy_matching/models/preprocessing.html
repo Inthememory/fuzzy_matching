@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
 <meta name="generator" content="pdoc 0.10.0" />
-<title>src.models.fit API documentation</title>
+<title>fuzzy_matching.models.preprocessing API documentation</title>
 <meta name="description" content="" />
 <link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/sanitize.min.css" integrity="sha256-PK9q560IAAa6WVRRh76LtCaI8pjTJ2z11v0miyNNjrs=" crossorigin>
 <link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/typography.min.css" integrity="sha256-7l/o7C8jubJiy74VsKTidCy1yBkRtiUGbVkYBylBqUg=" crossorigin>
@@ -19,7 +19,7 @@
 <main>
 <article id="content">
 <header>
-<h1 class="title">Module <code>src.models.fit</code></h1>
+<h1 class="title">Module <code>fuzzy_matching.models.preprocessing</code></h1>
 </header>
 <section id="section-intro">
 <details class="source">
@@ -27,30 +27,38 @@
 <span>Expand source code</span>
 </summary>
 <pre><code class="python">import polars as pl
-import numpy as np
-from xgboost import XGBClassifier
-from sklearn.utils.class_weight import compute_class_weight
+from sklearn.model_selection import train_test_split
 
 
-def xgb_classifier(X_train_xgb, Y_train_xgb):
-    # define positive class scaling factor
-    weights = compute_class_weight(
-        &#34;balanced&#34;,
-        classes=np.unique(Y_train_xgb),
-        y=Y_train_xgb.get_column(&#34;target&#34;).to_numpy(),
+def create_input_for_prediction(sdf):
+    input_for_prediction = sdf[0]
+    for df in sdf[1:]:
+        input_for_prediction = input_for_prediction.join(
+            df, on=[&#34;left_side&#34;, &#34;right_side&#34;], how=&#34;left&#34;
+        ).fill_null(0)
+    return input_for_prediction
+
+
+def label_dataset(dataset, labeled_pairs):
+    return dataset.join(labeled_pairs, on=[&#34;left_side&#34;, &#34;right_side&#34;], how=&#34;inner&#34;)
+
+
+def get_train_test(
+    dataset_labeled,
+    indicators_var,
+    label_var=[&#34;left_side&#34;, &#34;right_side&#34;],
+    target_var=&#34;target&#34;,
+):
+    label = dataset_labeled.select(label_var)
+    X = dataset_labeled.select(indicators_var)
+    Y = dataset_labeled.select(target_var)
+
+    # Splitting the data into train and test
+    # we are stratifying on the label to ensure we receive a similar proportion of matched items in each set
+    label_train, label_test, X_train, X_test, Y_train, Y_test = train_test_split(
+        label, X, Y, test_size=0.3, random_state=42, stratify=Y
     )
-    scale = weights[1] / weights[0]
-
-    # Fix new param with optimal parameter
-    xgb_model = XGBClassifier(
-        learning_rate=0.3,
-        n_estimators=200,
-        max_depth=8,
-        scale_pos_weight=scale,
-        gamma=0.2,
-    )
-    xgb_model.fit(X_train_xgb, Y_train_xgb)
-    return xgb_model</code></pre>
+    return label_train, label_test, X_train, X_test, Y_train, Y_test</code></pre>
 </details>
 </section>
 <section>
@@ -60,8 +68,8 @@ def xgb_classifier(X_train_xgb, Y_train_xgb):
 <section>
 <h2 class="section-title" id="header-functions">Functions</h2>
 <dl>
-<dt id="src.models.fit.xgb_classifier"><code class="name flex">
-<span>def <span class="ident">xgb_classifier</span></span>(<span>X_train_xgb, Y_train_xgb)</span>
+<dt id="fuzzy_matching.models.preprocessing.create_input_for_prediction"><code class="name flex">
+<span>def <span class="ident">create_input_for_prediction</span></span>(<span>sdf)</span>
 </code></dt>
 <dd>
 <div class="desc"></div>
@@ -69,25 +77,53 @@ def xgb_classifier(X_train_xgb, Y_train_xgb):
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def xgb_classifier(X_train_xgb, Y_train_xgb):
-    # define positive class scaling factor
-    weights = compute_class_weight(
-        &#34;balanced&#34;,
-        classes=np.unique(Y_train_xgb),
-        y=Y_train_xgb.get_column(&#34;target&#34;).to_numpy(),
-    )
-    scale = weights[1] / weights[0]
+<pre><code class="python">def create_input_for_prediction(sdf):
+    input_for_prediction = sdf[0]
+    for df in sdf[1:]:
+        input_for_prediction = input_for_prediction.join(
+            df, on=[&#34;left_side&#34;, &#34;right_side&#34;], how=&#34;left&#34;
+        ).fill_null(0)
+    return input_for_prediction</code></pre>
+</details>
+</dd>
+<dt id="fuzzy_matching.models.preprocessing.get_train_test"><code class="name flex">
+<span>def <span class="ident">get_train_test</span></span>(<span>dataset_labeled, indicators_var, label_var=['left_side', 'right_side'], target_var='target')</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_train_test(
+    dataset_labeled,
+    indicators_var,
+    label_var=[&#34;left_side&#34;, &#34;right_side&#34;],
+    target_var=&#34;target&#34;,
+):
+    label = dataset_labeled.select(label_var)
+    X = dataset_labeled.select(indicators_var)
+    Y = dataset_labeled.select(target_var)
 
-    # Fix new param with optimal parameter
-    xgb_model = XGBClassifier(
-        learning_rate=0.3,
-        n_estimators=200,
-        max_depth=8,
-        scale_pos_weight=scale,
-        gamma=0.2,
+    # Splitting the data into train and test
+    # we are stratifying on the label to ensure we receive a similar proportion of matched items in each set
+    label_train, label_test, X_train, X_test, Y_train, Y_test = train_test_split(
+        label, X, Y, test_size=0.3, random_state=42, stratify=Y
     )
-    xgb_model.fit(X_train_xgb, Y_train_xgb)
-    return xgb_model</code></pre>
+    return label_train, label_test, X_train, X_test, Y_train, Y_test</code></pre>
+</details>
+</dd>
+<dt id="fuzzy_matching.models.preprocessing.label_dataset"><code class="name flex">
+<span>def <span class="ident">label_dataset</span></span>(<span>dataset, labeled_pairs)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def label_dataset(dataset, labeled_pairs):
+    return dataset.join(labeled_pairs, on=[&#34;left_side&#34;, &#34;right_side&#34;], how=&#34;inner&#34;)</code></pre>
 </details>
 </dd>
 </dl>
@@ -103,12 +139,14 @@ def xgb_classifier(X_train_xgb, Y_train_xgb):
 <ul id="index">
 <li><h3>Super-module</h3>
 <ul>
-<li><code><a title="src.models" href="index.html">src.models</a></code></li>
+<li><code><a title="fuzzy_matching.models" href="index.html">fuzzy_matching.models</a></code></li>
 </ul>
 </li>
 <li><h3><a href="#header-functions">Functions</a></h3>
 <ul class="">
-<li><code><a title="src.models.fit.xgb_classifier" href="#src.models.fit.xgb_classifier">xgb_classifier</a></code></li>
+<li><code><a title="fuzzy_matching.models.preprocessing.create_input_for_prediction" href="#fuzzy_matching.models.preprocessing.create_input_for_prediction">create_input_for_prediction</a></code></li>
+<li><code><a title="fuzzy_matching.models.preprocessing.get_train_test" href="#fuzzy_matching.models.preprocessing.get_train_test">get_train_test</a></code></li>
+<li><code><a title="fuzzy_matching.models.preprocessing.label_dataset" href="#fuzzy_matching.models.preprocessing.label_dataset">label_dataset</a></code></li>
 </ul>
 </li>
 </ul>

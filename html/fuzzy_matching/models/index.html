@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
 <meta name="generator" content="pdoc 0.10.0" />
-<title>src.models API documentation</title>
+<title>fuzzy_matching.models API documentation</title>
 <meta name="description" content="" />
 <link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/sanitize.min.css" integrity="sha256-PK9q560IAAa6WVRRh76LtCaI8pjTJ2z11v0miyNNjrs=" crossorigin>
 <link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/typography.min.css" integrity="sha256-7l/o7C8jubJiy74VsKTidCy1yBkRtiUGbVkYBylBqUg=" crossorigin>
@@ -19,7 +19,7 @@
 <main>
 <article id="content">
 <header>
-<h1 class="title">Module <code>src.models</code></h1>
+<h1 class="title">Module <code>fuzzy_matching.models</code></h1>
 </header>
 <section id="section-intro">
 <details class="source">
@@ -29,14 +29,14 @@
 <pre><code class="python">import polars as pl
 from sklearn.metrics import confusion_matrix, roc_auc_score, log_loss
 
-from src.models.preprocessing import (
+from fuzzy_matching.models.preprocessing import (
     create_input_for_prediction,
     label_dataset,
     get_train_test,
 )
-from src.models.evaluation import evaluate_model
-from src.models.prediction import get_predictions
-from src.models.fit import xgb_classifier
+from fuzzy_matching.models.evaluation import evaluate_model
+from fuzzy_matching.models.prediction import get_predictions
+from fuzzy_matching.models.fit import xgb_classifier
 
 
 def launch_training(
@@ -71,10 +71,6 @@ def launch_training(
     )
 
     # Performances
-    log_loss_train, roc_auc_score_train, confusion_matrix_train = evaluate_model(
-        xgb_model, X_train, Y_train, &#34;train&#34;
-    )
-
     log_loss_test, roc_auc_score_test, confusion_matrix_test = evaluate_model(
         xgb_model, X_test, Y_test, &#34;test&#34;
     )
@@ -85,19 +81,19 @@ def launch_training(
 <section>
 <h2 class="section-title" id="header-submodules">Sub-modules</h2>
 <dl>
-<dt><code class="name"><a title="src.models.evaluation" href="evaluation.html">src.models.evaluation</a></code></dt>
+<dt><code class="name"><a title="fuzzy_matching.models.evaluation" href="evaluation.html">fuzzy_matching.models.evaluation</a></code></dt>
 <dd>
 <div class="desc"></div>
 </dd>
-<dt><code class="name"><a title="src.models.fit" href="fit.html">src.models.fit</a></code></dt>
+<dt><code class="name"><a title="fuzzy_matching.models.fit" href="fit.html">fuzzy_matching.models.fit</a></code></dt>
 <dd>
 <div class="desc"></div>
 </dd>
-<dt><code class="name"><a title="src.models.prediction" href="prediction.html">src.models.prediction</a></code></dt>
+<dt><code class="name"><a title="fuzzy_matching.models.prediction" href="prediction.html">fuzzy_matching.models.prediction</a></code></dt>
 <dd>
 <div class="desc"></div>
 </dd>
-<dt><code class="name"><a title="src.models.preprocessing" href="preprocessing.html">src.models.preprocessing</a></code></dt>
+<dt><code class="name"><a title="fuzzy_matching.models.preprocessing" href="preprocessing.html">fuzzy_matching.models.preprocessing</a></code></dt>
 <dd>
 <div class="desc"></div>
 </dd>
@@ -108,7 +104,7 @@ def launch_training(
 <section>
 <h2 class="section-title" id="header-functions">Functions</h2>
 <dl>
-<dt id="src.models.launch_training"><code class="name flex">
+<dt id="fuzzy_matching.models.launch_training"><code class="name flex">
 <span>def <span class="ident">launch_training</span></span>(<span>df_for_prediction, labeled_pairs, indicators_var, label_var, target_var='target')</span>
 </code></dt>
 <dd>
@@ -149,10 +145,6 @@ def launch_training(
     )
 
     # Performances
-    log_loss_train, roc_auc_score_train, confusion_matrix_train = evaluate_model(
-        xgb_model, X_train, Y_train, &#34;train&#34;
-    )
-
     log_loss_test, roc_auc_score_test, confusion_matrix_test = evaluate_model(
         xgb_model, X_test, Y_test, &#34;test&#34;
     )
@@ -173,20 +165,20 @@ def launch_training(
 <ul id="index">
 <li><h3>Super-module</h3>
 <ul>
-<li><code><a title="src" href="../index.html">src</a></code></li>
+<li><code><a title="fuzzy_matching" href="../index.html">fuzzy_matching</a></code></li>
 </ul>
 </li>
 <li><h3><a href="#header-submodules">Sub-modules</a></h3>
 <ul>
-<li><code><a title="src.models.evaluation" href="evaluation.html">src.models.evaluation</a></code></li>
-<li><code><a title="src.models.fit" href="fit.html">src.models.fit</a></code></li>
-<li><code><a title="src.models.prediction" href="prediction.html">src.models.prediction</a></code></li>
-<li><code><a title="src.models.preprocessing" href="preprocessing.html">src.models.preprocessing</a></code></li>
+<li><code><a title="fuzzy_matching.models.evaluation" href="evaluation.html">fuzzy_matching.models.evaluation</a></code></li>
+<li><code><a title="fuzzy_matching.models.fit" href="fit.html">fuzzy_matching.models.fit</a></code></li>
+<li><code><a title="fuzzy_matching.models.prediction" href="prediction.html">fuzzy_matching.models.prediction</a></code></li>
+<li><code><a title="fuzzy_matching.models.preprocessing" href="preprocessing.html">fuzzy_matching.models.preprocessing</a></code></li>
 </ul>
 </li>
 <li><h3><a href="#header-functions">Functions</a></h3>
 <ul class="">
-<li><code><a title="src.models.launch_training" href="#src.models.launch_training">launch_training</a></code></li>
+<li><code><a title="fuzzy_matching.models.launch_training" href="#fuzzy_matching.models.launch_training">launch_training</a></code></li>
 </ul>
 </li>
 </ul>

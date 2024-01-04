@@ -1,1 +1,0 @@
-from src.similarity_features.class_similarity import Similarity

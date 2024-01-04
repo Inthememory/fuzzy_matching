@@ -244,31 +244,44 @@ class DatasetsMerged:
         return self.brand_classification_dummy
 
     def get_brand_classification_words(
-        self, level: str, lemmatizer, list_stopwords: list = []
+        self, levels: list, lemmatizer, list_stopwords: list = []
     ) -> pl.DataFrame:
         """Preprocess level to make comparisons easier
 
         Args:
-            level (str): level to process
+            levels (list): levels to process
             lemmatizer (type): lemmatizer
             list_stopwords (list, optional): list of stopwords. Defaults to [].
 
         Returns:
             pl.Dataframe: _description_
         """
-        # Select level to process
-        brands_classification = self.get_brand_classification([level])
-
-        # List levels describing each brand
-        brands_classification_words = (
-            brands_classification.with_columns(
-                pl.concat_list(
-                    [c for c in brands_classification.columns if c.startswith("level")]
-                ).alias(f"level")
+        ## For level in levels list levels describing each brand
+        L = []
+        for level in levels:
+            # Select level to process
+            brands_classification_level = self.get_brand_classification([level])
+            brands_classification_words_level = (
+                brands_classification_level
+                # List levels describing each brand
+                .with_columns(
+                    pl.concat_list(
+                        [
+                            c
+                            for c in brands_classification_level.columns
+                            if c.startswith("level")
+                        ]
+                    ).alias(f"level")
+                )
+                .select("brand_desc_slug", "level")
+                .explode(f"level")
+                .filter(pl.col(f"level").is_not_null())
             )
-            .select("brand_desc_slug", "level")
-            .explode(f"level")
-            .filter(pl.col(f"level").is_not_null())
+            # Add dataframe to the list of dataframes to merge
+            L.append(brands_classification_words_level)
+
+        brands_classification_words = (
+            pl.concat(L)
             .groupby("brand_desc_slug")
             .agg(pl.col(f"level"))
             .with_columns(pl.col(f"level").cast(pl.List(pl.Utf8)).list.join(" "))
@@ -442,6 +455,19 @@ class DatasetsMerged:
         replacements: list,
         col: str = "brand_desc_slug",
     ) -> pl.DataFrame:
+        """proceed to a pannel of transformations on a column : remove_stopwords, remove_generic_words, lemmatize_sentence, deduplicate_sentence, slugify
+
+        Args:
+            df (pl.DataFrame): _description_
+            lemmatizer (_type_): lemmatizer
+            list_stopwords (list): list of stopwords to remove
+            generic_words (list): list of generic words to remove
+            replacements (list): list of replacements to performe
+            col (str, optional): col. Defaults to "brand_desc_slug".
+
+        Returns:
+            pl.DataFrame: a dataframe with transformations on the sepcified column performed
+        """
         return (
             df.with_columns(
                 pl.col(col)
@@ -479,6 +505,17 @@ class DatasetsMerged:
     def update_level_col(
         df: pl.DataFrame, lemmatizer, list_stopwords: list, col: str = "level"
     ) -> pl.DataFrame:
+        """proceed to a pannel of transformations on a column : remove_stopwords, remove_digit, lemmatize_sentence, deduplicate_sentence
+
+        Args:
+            df (pl.DataFrame): _description_
+            lemmatizer (_type_): lemmatizer
+            list_stopwords (list): list_stopwords to remove
+            col (str, optional): col. Defaults to "level".
+
+        Returns:
+            pl.DataFrame: a dataframe with transformations on the sepcified column performed
+        """
         return (
             df.with_columns(
                 pl.col(col)
@@ -491,6 +528,11 @@ class DatasetsMerged:
             .with_columns(
                 pl.col(f"{col}_updated").apply(
                     lambda x: DatasetsMerged.lemmatize_sentence(x, lemmatizer)
+                )
+            )
+            .with_columns(
+                pl.col(f"{col}_updated").apply(
+                    lambda x: DatasetsMerged.deduplicate_sentence(x)
                 )
             )
         )

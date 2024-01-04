@@ -10,8 +10,8 @@ from french_lefff_lemmatizer.french_lefff_lemmatizer import FrenchLefffLemmatize
 from nltk.corpus import stopwords
 from sentence_transformers import SentenceTransformer
 
-from src import Dataset, DatasetsMerged, Similarity
-from src import (
+from fuzzy_matching import Dataset, DatasetsMerged, Similarity
+from fuzzy_matching import (
     create_input_for_prediction,
     launch_training,
     get_predictions,
@@ -60,7 +60,7 @@ if __name__ == "__main__":
     lemmatizer = FrenchLefffLemmatizer()
     sl_replacements = config["sl_replacements"]
 
-    ## 1. Preprocessing: calculate input datasets 
+    ## 1. Preprocessing: calculate input datasets
     # Create a list of clean datasets to proceed
     logger.info(f"Create datasets : {args.datasets}")
     datasets = [
@@ -68,6 +68,9 @@ if __name__ == "__main__":
             pl.read_parquet(f"data/raw/{dataset}.parquet"),
             dataset,
             nb_levels=config["retailer"][dataset]["nb_levels"],
+            levels_col="crumb",
+            level0_included=config["retailer"][dataset]["level0"],
+            level1_excluded=config["retailer"][dataset]["level1_to_delete"],
             replacements_brand=[["&", "et"]],
         ).filter_dataset(unknown_brands=unknown_brands)
         for dataset in args.datasets
@@ -82,11 +85,16 @@ if __name__ == "__main__":
 
     # Merge datasets and clean a specified level column.
     brand_classification_words = datasets_merged.get_brand_classification_words(
-        level=config["classification_most_relevant_level"],
+        levels=config["classification_most_relevant_levels"],
         lemmatizer=lemmatizer,
         list_stopwords=list_stopwords,
     )
     print(f"brand_classification_words : {brand_classification_words.shape}")
+
+    # Write results
+    brand_classification_words.write_csv(
+        f"{DATA_PROCESSED_PATH}brand_classification_words.csv", separator=";"
+    )
 
     # Concat vertically brands from each dataset
     brands_updated = datasets_merged.extract_brands(
@@ -102,15 +110,6 @@ if __name__ == "__main__":
         brands_updated, ["brand_desc_slug", "brand_desc_slug_updated"]
     )
     print(f"brands_cross_join : {brands_cross_join.shape}")
-
-    # Pair brands with similar products
-    brands_with_same_products_paired = datasets_merged.pair_brands_with_same_products()
-    print(
-        f"brands_with_same_products_paired : {brands_with_same_products_paired.shape}"
-    )
-    brands_with_same_products_paired.write_csv(
-        f"{DATA_PROCESSED_PATH}brands_with_same_products_paired.csv", separator=";"
-    )
 
     ## 2. Build similarity features
     logger.info("Build features")
@@ -140,7 +139,7 @@ if __name__ == "__main__":
     similarity_classification = Similarity(
         brand_classification_dummy, name="classification", label_col="brand_desc_slug"
     )
-    # Compute cosin similarity
+    # Compute cosinm similarity
     similarity_classification.cos_sim()
     similarities_features.append(similarity_classification.pairwise_dataset)
     print(f"sparsity : {similarity_classification.sparsity()}")
@@ -197,7 +196,7 @@ if __name__ == "__main__":
     if args.training:
         logger.info("Training of XGBoost Classifier")
         labeled_pairs = pl.read_csv(
-            f"{DATA_PROCESSED_PATH}training_dataset.csv", separator=";"
+            f"{DATA_RAW_PATH}training_dataset.csv", separator=";"
         )
 
         # Make predictions and evaluate model
@@ -218,7 +217,7 @@ if __name__ == "__main__":
 
     ## 5. Evaluate the model on a validation dataset
     val_dataset = input_prediction_completed.join(
-        pl.read_csv(f"{DATA_PROCESSED_PATH}validation_dataset.csv", separator=";"),
+        pl.read_csv(f"{DATA_RAW_PATH}validation_dataset.csv", separator=";"),
         on=["left_side", "right_side"],
         how="inner",
     )
@@ -240,13 +239,28 @@ if __name__ == "__main__":
     xgb_model = pickle.load(open(f"{MODELS_PATH}{MODEL_NAME}.pickle", "rb"))
 
     predictions = get_predictions(xgb_model, input_prediction_completed, config)
-    print(predictions.filter(pl.col("prediction") == 1).shape[0] / predictions.shape[0])
     predictions.write_csv(
         f"{DATA_PROCESSED_PATH}xgb_model_predictions.csv", separator=";"
     )
 
     ## 7. Create groups
     logger.info("Create groups")
+
+    # Pair brands with similar products if more than two datasets
+    if len(datasets) > 1:
+        brands_with_same_products_paired = (
+            datasets_merged.pair_brands_with_same_products()
+        )
+        print(
+            f"brands_with_same_products_paired : {brands_with_same_products_paired.shape}"
+        )
+        brands_with_same_products_paired.write_csv(
+            f"{DATA_PROCESSED_PATH}brands_with_same_products_paired.csv", separator=";"
+        )
+    else:
+        schema = {"left_side": pl.Utf8, "right_side": pl.Utf8}
+        brands_with_same_products_paired = pl.DataFrame(schema=schema)
+
     # Load predictions
     df_input_groups = (
         pl.concat(
@@ -275,7 +289,9 @@ if __name__ == "__main__":
         df_input_groups, groups_init=groups_init, min_similarity=0.8
     ).sort(by="group_name")
 
-    logger.info(f"Nb brands : {res_group.shape[0]}, nb groups : {res_group.select('group_name').unique().shape[0]}")
+    logger.info(
+        f"Nb brands : {res_group.shape[0]}, nb groups : {res_group.select('group_name').unique().shape[0]}"
+    )
 
     # Select a master brand
     res_group_with_master = add_master_brand(datasets, res_group)

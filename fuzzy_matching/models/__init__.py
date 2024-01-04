@@ -1,14 +1,14 @@
 import polars as pl
 from sklearn.metrics import confusion_matrix, roc_auc_score, log_loss
 
-from src.models.preprocessing import (
+from fuzzy_matching.models.preprocessing import (
     create_input_for_prediction,
     label_dataset,
     get_train_test,
 )
-from src.models.evaluation import evaluate_model
-from src.models.prediction import get_predictions
-from src.models.fit import xgb_classifier
+from fuzzy_matching.models.evaluation import evaluate_model
+from fuzzy_matching.models.prediction import get_predictions
+from fuzzy_matching.models.fit import xgb_classifier
 
 
 def launch_training(
@@ -43,10 +43,6 @@ def launch_training(
     )
 
     # Performances
-    log_loss_train, roc_auc_score_train, confusion_matrix_train = evaluate_model(
-        xgb_model, X_train, Y_train, "train"
-    )
-
     log_loss_test, roc_auc_score_test, confusion_matrix_test = evaluate_model(
         xgb_model, X_test, Y_test, "test"
     )

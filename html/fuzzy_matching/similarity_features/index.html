@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
 <meta name="generator" content="pdoc 0.10.0" />
-<title>src.models.evaluation API documentation</title>
+<title>fuzzy_matching.similarity_features API documentation</title>
 <meta name="description" content="" />
 <link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/sanitize.min.css" integrity="sha256-PK9q560IAAa6WVRRh76LtCaI8pjTJ2z11v0miyNNjrs=" crossorigin>
 <link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/typography.min.css" integrity="sha256-7l/o7C8jubJiy74VsKTidCy1yBkRtiUGbVkYBylBqUg=" crossorigin>
@@ -19,64 +19,28 @@
 <main>
 <article id="content">
 <header>
-<h1 class="title">Module <code>src.models.evaluation</code></h1>
+<h1 class="title">Module <code>fuzzy_matching.similarity_features</code></h1>
 </header>
 <section id="section-intro">
 <details class="source">
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">from loguru import logger
-from sklearn.metrics import confusion_matrix, roc_auc_score, log_loss
-
-
-def evaluate_model(model, X, Y, set_name):
-    Y_pred = model.predict(X)
-
-    log_loss_value = log_loss(Y, Y_pred)
-    roc_auc_score_value = roc_auc_score(Y, Y_pred)
-    Logger = logger.bind(log_loss=log_loss_value, roc_auc_score=roc_auc_score_value)
-    Logger.info(f&#34;Performance {set_name} set&#34;)
-
-    confusion_matrix_value = confusion_matrix(Y, Y_pred)
-    confusion_matrix_Logger = logger.bind(confusion_matrix=confusion_matrix_value)
-    confusion_matrix_Logger.info(f&#34;confusion_matrix {set_name}&#34;)
-
-    return log_loss_value, roc_auc_score_value, confusion_matrix_value</code></pre>
+<pre><code class="python">from fuzzy_matching.similarity_features.class_similarity import Similarity</code></pre>
 </details>
 </section>
 <section>
-</section>
-<section>
-</section>
-<section>
-<h2 class="section-title" id="header-functions">Functions</h2>
+<h2 class="section-title" id="header-submodules">Sub-modules</h2>
 <dl>
-<dt id="src.models.evaluation.evaluate_model"><code class="name flex">
-<span>def <span class="ident">evaluate_model</span></span>(<span>model, X, Y, set_name)</span>
-</code></dt>
+<dt><code class="name"><a title="fuzzy_matching.similarity_features.class_similarity" href="class_similarity.html">fuzzy_matching.similarity_features.class_similarity</a></code></dt>
 <dd>
 <div class="desc"></div>
-<details class="source">
-<summary>
-<span>Expand source code</span>
-</summary>
-<pre><code class="python">def evaluate_model(model, X, Y, set_name):
-    Y_pred = model.predict(X)
-
-    log_loss_value = log_loss(Y, Y_pred)
-    roc_auc_score_value = roc_auc_score(Y, Y_pred)
-    Logger = logger.bind(log_loss=log_loss_value, roc_auc_score=roc_auc_score_value)
-    Logger.info(f&#34;Performance {set_name} set&#34;)
-
-    confusion_matrix_value = confusion_matrix(Y, Y_pred)
-    confusion_matrix_Logger = logger.bind(confusion_matrix=confusion_matrix_value)
-    confusion_matrix_Logger.info(f&#34;confusion_matrix {set_name}&#34;)
-
-    return log_loss_value, roc_auc_score_value, confusion_matrix_value</code></pre>
-</details>
 </dd>
 </dl>
+</section>
+<section>
+</section>
+<section>
 </section>
 <section>
 </section>
@@ -89,12 +53,12 @@ def evaluate_model(model, X, Y, set_name):
 <ul id="index">
 <li><h3>Super-module</h3>
 <ul>
-<li><code><a title="src.models" href="index.html">src.models</a></code></li>
+<li><code><a title="fuzzy_matching" href="../index.html">fuzzy_matching</a></code></li>
 </ul>
 </li>
-<li><h3><a href="#header-functions">Functions</a></h3>
-<ul class="">
-<li><code><a title="src.models.evaluation.evaluate_model" href="#src.models.evaluation.evaluate_model">evaluate_model</a></code></li>
+<li><h3><a href="#header-submodules">Sub-modules</a></h3>
+<ul>
+<li><code><a title="fuzzy_matching.similarity_features.class_similarity" href="class_similarity.html">fuzzy_matching.similarity_features.class_similarity</a></code></li>
 </ul>
 </li>
 </ul>
