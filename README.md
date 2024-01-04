@@ -9,5 +9,5 @@ Databases often have multiple entries that relate to the same entity. In our cas
 python -m venv.venv
 source/bin/activate
 pip install -r requirements.txt
-python main.py --datasets <retailer_1 retailer_2 retailer_3> [--training | --no-training]
+python main.py --datasets <retailer_1 retailer_2 ...> [--training | --no-training]
 ```
