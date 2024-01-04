@@ -1,39 +1,39 @@
 import polars as pl
+import numpy as np
 import sys
 import yaml
 import argparse
 from loguru import logger
 import pickle
 
+from french_lefff_lemmatizer.french_lefff_lemmatizer import FrenchLefffLemmatizer
+from nltk.corpus import stopwords
+from sentence_transformers import SentenceTransformer
+
+from src import Dataset, DatasetsMerged, Similarity
 from src import (
-    gold,
-    similarity_classification,
-    similarity_classification_words,
-    similarity_semantic,
-    similarity_syntax_ngram,
-    similarity_syntax_words,
     create_input_for_prediction,
     launch_training,
-    export_prediction,
+    get_predictions,
     evaluate_model,
-    pair_brands_with_same_products,
     group_similar_strings,
     add_master_brand,
-    french_preprocess_sentence,
-    concat_brands_slug,
-    get_brand_without_space,
 )
 
+
+# Initialise paths
 DATA_RAW_PATH = "data/raw/"
 DATA_PROCESSED_PATH = "data/processed/"
 MODELS_PATH = "models/"
 MODEL_NAME = "xgb_model"
 
+# Initialise logs format
 logger.remove(0)
 logger.add(
     sys.stderr,
     format="{time} | {level} | {message} | {extra}",
 )
+
 
 if __name__ == "__main__":
     # Add argparse for the command line:
@@ -49,110 +49,183 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    # Load the configuration file:
+    # Load the configuration file and set parameters
     logger.info("Loading YAML configuration file")
     with open("config.yml", "r") as file:
         config = yaml.safe_load(file)
 
-    # Create datasets:
-    datasetsLogger = logger.bind(datasets=[dataset for dataset in args.datasets])
-    datasetsLogger.info("Create datasets")
-    datasets = [gold(DATA_RAW_PATH, dataset, config) for dataset in args.datasets]
+    unknown_brands = config["generic_words"]
+    generic_words = config["generic_words"]
+    list_stopwords = [word for word in stopwords.words("french") if len(word) > 1]
+    lemmatizer = FrenchLefffLemmatizer()
+    sl_replacements = config["sl_replacements"]
 
-    # Build similarity features
+    ## 1. Preprocessing: calculate input datasets 
+    # Create a list of clean datasets to proceed
+    logger.info(f"Create datasets : {args.datasets}")
+    datasets = [
+        Dataset(
+            pl.read_parquet(f"data/raw/{dataset}.parquet"),
+            dataset,
+            nb_levels=config["retailer"][dataset]["nb_levels"],
+            replacements_brand=[["&", "et"]],
+        ).filter_dataset(unknown_brands=unknown_brands)
+        for dataset in args.datasets
+    ]
+    datasets_merged = DatasetsMerged(datasets)
+
+    # Merge datasets and convert classification variable into dummy variables.
+    brand_classification_dummy = datasets_merged.get_brand_classification_dummy(
+        levels=config["classification_levels"]
+    )
+    print(f"brand_classification_dummy : {brand_classification_dummy.shape}")
+
+    # Merge datasets and clean a specified level column.
+    brand_classification_words = datasets_merged.get_brand_classification_words(
+        level=config["classification_most_relevant_level"],
+        lemmatizer=lemmatizer,
+        list_stopwords=list_stopwords,
+    )
+    print(f"brand_classification_words : {brand_classification_words.shape}")
+
+    # Concat vertically brands from each dataset
+    brands_updated = datasets_merged.extract_brands(
+        lemmatizer=lemmatizer,
+        list_stopwords=list_stopwords,
+        generic_words=generic_words,
+        replacements=sl_replacements,
+    )
+    print(f"brands_updated : {brands_updated.shape}")
+
+    # Create all pairs of brands with a cartesian product
+    brands_cross_join = DatasetsMerged.cross_join(
+        brands_updated, ["brand_desc_slug", "brand_desc_slug_updated"]
+    )
+    print(f"brands_cross_join : {brands_cross_join.shape}")
+
+    # Pair brands with similar products
+    brands_with_same_products_paired = datasets_merged.pair_brands_with_same_products()
+    print(
+        f"brands_with_same_products_paired : {brands_with_same_products_paired.shape}"
+    )
+    brands_with_same_products_paired.write_csv(
+        f"{DATA_PROCESSED_PATH}brands_with_same_products_paired.csv", separator=";"
+    )
+
+    ## 2. Build similarity features
     logger.info("Build features")
-
-    logger.info("similarity_classification")
-    df_similarity_classification = similarity_classification(
-        datasets, config["classification_levels"]
-    )
-    df_similarity_classification.write_csv(
-        f"{DATA_PROCESSED_PATH}similarity_classification.csv", separator=";"
-    )
-
-    logger.info("similarity_classification_words")
-    df_similarity_classification_words = similarity_classification_words(
-        datasets, config["classification_most_relevant_level"]
-    )
-    df_similarity_classification_words.write_csv(
-        f"{DATA_PROCESSED_PATH}similarity_classification_words.csv", separator=";"
-    )
-
-    logger.info("similarity_semantic")
-    df_similarity_semantic = similarity_semantic(datasets)
-    df_similarity_semantic.write_csv(
-        f"{DATA_PROCESSED_PATH}similarity_semantic.csv", separator=";"
-    )
+    # Initialise an empty list to stores similarity datasets
+    similarities_features = []
 
     logger.info("similarity_syntax_ngram")
-    df_similarity_syntax_ngram = similarity_syntax_ngram(datasets)
-    df_similarity_syntax_ngram.write_csv(
-        f"{DATA_PROCESSED_PATH}similarity_syntax_ngram.csv", separator=";"
+    # Create Similarity object
+    similarity_syntax_ngram = Similarity(
+        brands_updated,
+        name="syntax_ngram",
+        label_col="brand_desc_slug",
+        col="brand_desc_slug_updated_w_space",
+        tfidf_required=True,
+    )
+    # Fix parameters
+    similarity_syntax_ngram.analyzer = "char"
+    similarity_syntax_ngram.ngram_range = (2, 3)
+    # Compute cosin similarity
+    similarity_syntax_ngram.cos_sim(min_similarity=0.2)
+    similarities_features.append(similarity_syntax_ngram.pairwise_dataset)
+    print(f"sparsity : {similarity_syntax_ngram.sparsity()}")
+    print(similarity_syntax_ngram.pairwise_dataset.shape)
+
+    logger.info("similarity_classification")
+    # Create Similarity object
+    similarity_classification = Similarity(
+        brand_classification_dummy, name="classification", label_col="brand_desc_slug"
+    )
+    # Compute cosin similarity
+    similarity_classification.cos_sim()
+    similarities_features.append(similarity_classification.pairwise_dataset)
+    print(f"sparsity : {similarity_classification.sparsity()}")
+
+    logger.info("similarity_classification_words")
+    # Create Similarity object
+    similarity_classification_words = Similarity(
+        brand_classification_words,
+        name="classification_words",
+        label_col="brand_desc_slug",
+        col="level_updated",
+        tfidf_required=True,
+    )
+    # Fix parameters
+    similarity_classification_words.token_pattern = r"(?u)\b[A-Za-z]{2,}\b"
+    # Compute cosin similarity
+    similarity_classification_words.cos_sim()
+    similarities_features.append(similarity_classification_words.pairwise_dataset)
+    print(f"sparsity : {similarity_classification_words.sparsity()}")
+
+    ## 3. Create input for prediction
+    similarities_features.append(
+        brands_cross_join.rename({"brand_desc_slug_left": "left_side"}).rename(
+            {"brand_desc_slug_right": "right_side"}
+        )
     )
 
-    logger.info("similarity_syntax_words")
-    df_similarity_syntax_words = similarity_syntax_words(datasets)
-    df_similarity_syntax_words.write_csv(
-        f"{DATA_PROCESSED_PATH}similarity_syntax_words.csv", separator=";"
+    input_prediction_init = create_input_for_prediction(similarities_features)
+    print(f"input_prediction_init: {input_prediction_init.shape}")
+
+    # Add distance_metrics
+    logger.info("similarity_fuzzy")
+    input_prediction_completed = Similarity.distance_metrics(
+        input_prediction_init,
+        col_left="brand_desc_slug_updated_left",
+        col_right="brand_desc_slug_updated_right",
+    )
+    print(f"input_prediction_completed: {input_prediction_completed.shape}")
+    input_prediction_completed.write_csv(
+        f"{DATA_PROCESSED_PATH}input_prediction_completed.csv", separator=";"
+    )
+    input_prediction_completed = input_prediction_completed.drop(
+        "brand_desc_slug_updated_left", "brand_desc_slug_updated_right"
     )
 
-    df_for_prediction = create_input_for_prediction(
-        [
-            df_similarity_classification,
-            df_similarity_classification_words,
-            df_similarity_semantic,
-            df_similarity_syntax_ngram,
-            df_similarity_syntax_words,
-        ]
-    )
-    df_for_prediction.write_csv(
-        f"{DATA_PROCESSED_PATH}df_for_prediction.csv", separator=";"
+    ## 4. Fit the model (XGBoost Classifier) if training = True
+    # Set variables
+    indicators_var, label_var, target_var = (
+        config["indicators_var"],
+        config["label_var"],
+        config["target_var"],
     )
 
-    indicators_var = [
-        "similarity_syntax_ngram",
-        "similarity_syntax_words",
-        "similarity_semantic",
-        "similarity_classification",
-        "similarity_classification_words",
-        "token_set_ratio",
-    ]
-    label_var = ["left_side", "right_side"]
-    target_var = "target"
-
-    # Train the model
     if args.training:
         logger.info("Training of XGBoost Classifier")
         labeled_pairs = pl.read_csv(
             f"{DATA_PROCESSED_PATH}training_dataset.csv", separator=";"
         )
 
-        xgb_model = launch_training(
-            df_for_prediction,
+        # Make predictions and evaluate model
+        xgb_model, test_predictions = launch_training(
+            input_prediction_completed,
             labeled_pairs,
             indicators_var,
             label_var,
             target_var,
         )
 
+        test_predictions.write_csv(
+            f"{DATA_PROCESSED_PATH}xgb_model_predictions_test.csv", separator=";"
+        )
+
         # Save model
         pickle.dump(xgb_model, open(f"{MODELS_PATH}{MODEL_NAME}.pickle", "wb"))
 
-    ## Validation
-    val_dataset = df_for_prediction.join(
+    ## 5. Evaluate the model on a validation dataset
+    val_dataset = input_prediction_completed.join(
         pl.read_csv(f"{DATA_PROCESSED_PATH}validation_dataset.csv", separator=";"),
         on=["left_side", "right_side"],
         how="inner",
     )
-    predictions_val = export_prediction(
-        [
-            val_dataset.select(label_var),
-            val_dataset.select(indicators_var),
-            val_dataset.select(target_var),
-        ],
-        xgb_model.predict(val_dataset.select(indicators_var)),
-        xgb_model.predict_proba(val_dataset.select(indicators_var)),
-        "val",
+    val_predictions = get_predictions(xgb_model, val_dataset, config)
+
+    val_predictions.write_csv(
+        f"{DATA_PROCESSED_PATH}xgb_model_predictions_val.csv", separator=";"
     )
 
     log_loss_val, roc_auc_score_val, confusion_matrix_val = evaluate_model(
@@ -162,23 +235,19 @@ if __name__ == "__main__":
         "val",
     )
 
-    # Get predictions
+    ## 6. Make predictions on the whole dataset
     logger.info("Predict")
     xgb_model = pickle.load(open(f"{MODELS_PATH}{MODEL_NAME}.pickle", "rb"))
 
-    predictions = export_prediction(
-        [
-            df_for_prediction.select(label_var),
-            df_for_prediction.select(indicators_var),
-        ],
-        xgb_model.predict(df_for_prediction.select(indicators_var)),
-        xgb_model.predict_proba(df_for_prediction.select(indicators_var)),
-        "",
-    )
+    predictions = get_predictions(xgb_model, input_prediction_completed, config)
     print(predictions.filter(pl.col("prediction") == 1).shape[0] / predictions.shape[0])
+    predictions.write_csv(
+        f"{DATA_PROCESSED_PATH}xgb_model_predictions.csv", separator=";"
+    )
 
-    # Create groups
+    ## 7. Create groups
     logger.info("Create groups")
+    # Load predictions
     df_input_groups = (
         pl.concat(
             [
@@ -187,7 +256,7 @@ if __name__ == "__main__":
                     pl.col("right_side"),
                     pl.col("proba_1").cast(float).alias("similarity"),
                 ),
-                # pair_brands_with_same_products(datasets).select(
+                # brands_with_same_products_paired.select(
                 #     pl.col("left_side"),
                 #     pl.col("right_side"),
                 #     pl.lit(1.0).alias("similarity"),
@@ -197,15 +266,21 @@ if __name__ == "__main__":
         .groupby(pl.col("left_side"), pl.col("right_side"))
         .agg(pl.col("similarity").max())
     )
-    res_group = group_similar_strings(df_input_groups, min_similarity=0.8).sort(
-        by="group_name"
-    )
-    print(
-        f"Nb brands : {res_group.shape[0]}, nb groups : {res_group.select('group_name').unique().shape[0]}"
-    )
 
+    # Load existing groups
+    groups_init = pl.read_csv(f"{DATA_PROCESSED_PATH}res_group_full.csv", separator=";")
+
+    # Groups similar brands
+    res_group = group_similar_strings(
+        df_input_groups, groups_init=groups_init, min_similarity=0.8
+    ).sort(by="group_name")
+
+    logger.info(f"Nb brands : {res_group.shape[0]}, nb groups : {res_group.select('group_name').unique().shape[0]}")
+
+    # Select a master brand
     res_group_with_master = add_master_brand(datasets, res_group)
 
+    # Write results
     res_group_with_master.write_csv(
         f"{DATA_PROCESSED_PATH}res_group_full.csv", separator=";"
     )

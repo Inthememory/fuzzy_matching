@@ -15,15 +15,11 @@ def xgb_classifier(X_train_xgb, Y_train_xgb):
 
     # Fix new param with optimal parameter
     xgb_model = XGBClassifier(
-        learning_rate=0.2,
-        n_estimators=100,
-        gamma=0.15,
-        subsample=0.8,
-        colsample_bytree=0.8,
+        learning_rate=0.3,
+        n_estimators=200,
         max_depth=8,
-        min_child_weight=1,
-        objective="binary:logistic",
         scale_pos_weight=scale,
+        gamma=0.2,
     )
     xgb_model.fit(X_train_xgb, Y_train_xgb)
     return xgb_model

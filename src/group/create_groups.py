@@ -1,106 +1,133 @@
 import pandas as pd
 import polars as pl
 import numpy as np
-from typing import Union
+from typing import Union, Dict
 
-
-def group_similar_strings(
-    df: pl.DataFrame, min_similarity: float = 0.7
+def group_similar_strings( 
+    df: pl.dataframe,
+    groups_init: Union[pl.DataFrame, None],
+    min_similarity: float = 0.7,
 ) -> pl.DataFrame:
-    """_summary_
+    """Group stirngs whose probability of similarity is above a certain threshold
 
     Args:
-        df (pl.DataFrame): _description_
-        min_similarity (float, optional): _description_. Defaults to 0.7.
+        df (pl.DataFrame): dataset that contains pairs of strings and probability of similarity between the two
+        groups (Union): previously formed groups
+        min_similarity (float, optional): probability of similarity threshold. Defaults to 0.7.
 
     Returns:
-        pl.DataFrame: _description_
+        pl.DataFrame: a dataframe containing group_ids assigned to each string (each string has a unique group_id)
     """
 
-    def create_new_group_id(groups: dict) -> int:
-        """_summary_
+    # Instantiate empty dict if groups is None
+    if groups_init is None:
+        groups = {}
+    else:
+        # Get a Python dict from columns  "name", "group_name" of groups_init dataframe (e.g. {name1: groupe_name1})
+        groups = dict(groups_init.select( "name", "group_name").iter_rows())
 
-        Args:
-            groups (dict): _description_
+    # Instantiate empty dict from group_id imputation (groups that will be merged)
+    groupId_imputation = {}
 
-        Returns:
-            int: _description_
-        """
-        if len(groups) > 0:
-            return max(list(groups.values())) + 1
-        else:
-            return 0
+    # sort dataset to add orphan at the end
+    dataset = df.sort(["similarity"], descending=True)
 
-    def find_group(groups: dict, left_side: str, right_side: str) -> Union[int, None]:
-        """_summary_
-
-        Args:
-            groups (dict): _description_
-            left_side (str): _description_
-            right_side (str): _description_
-
-        Returns:
-            Union[int, None]: _description_
-        """
-        # If either the row or the col string have already been given a group, return that group id.
-        # Otherwise return a new group id
-        if left_side in groups:
-            return groups[left_side]
-        elif right_side in groups:
-            return groups[right_side]
-        else:
-            return create_new_group_id(groups)
-
-    def add_pair_to_dict(groups: dict, left_side: str, right_side: str):
-        """Assign an group id to both strings (left_side, right_side)
-
-        Args:
-            groups (dict): _description_
-            left_side (str): _description_
-            right_side (str): _description_
-        """
-        # first, see if one has already been added
-        group_id = find_group(groups, left_side, right_side)
-        # Once we know the group id, set it as the value for both strings in the dictionnary
-        groups[left_side] = group_id
-        groups[right_side] = group_id
-
-    def add_orphan_to_dict(groups: dict, string: str):
-        """Assign an group id to string
-
-        Args:
-            groups (dict): _description_
-            string (str): _description_
-        """
-        # first, see if string has already been added to groups
-        if string in groups:
-            group_id = groups[string]
-        # else add to a new group
-        else:
-            group_id = create_new_group_id(groups)
-        # Once we know the group id, set it as the value in the dictionnary
-        groups[string] = group_id
-
-    # Instantiate empty dict
-    groups = {}
-
-    # for each left_side and right_side in dataframe
-    # if they're similar add them to the same group
+    # for each left_side and right_side in dataframe if they're similar add them to the same group
     for left_side, right_side, similarity in zip(
-        df.get_column("left_side").to_list(),
-        df.get_column("right_side").to_list(),
-        df.get_column("similarity").to_list(),
+        dataset.get_column("left_side").to_list(),
+        dataset.get_column("right_side").to_list(),
+        dataset.get_column("similarity").to_list(),
     ):
         if similarity >= min_similarity:
-            add_pair_to_dict(groups, left_side, right_side)
+            add_pair_to_dict(groups, groupId_imputation, left_side, right_side)
         else:
             add_orphan_to_dict(groups, left_side)
             add_orphan_to_dict(groups, right_side)
+
+    # Iterate through the dictionary items and update the values based on groupId_imputation
+    for key, value in groups.items():
+        if value is groupId_imputation:
+            # Replace the value with the new value
+            groups[key] = groupId_imputation[
+                value
+            ]  # Replace 'new_value' with the value to set
 
     return pl.DataFrame(
         list(zip(groups.keys(), groups.values())), schema=["name", "group_name"]
     )
 
+
+def create_new_group_id(groups: dict) -> int:
+    """Return a new group_id in an incremental way
+
+    Args:
+        groups (dict): previously formed groups
+
+    Returns:
+        int: new group_id
+    """
+    if len(groups) == 0:
+        return 0
+    else:
+        return max(list(groups.values())) + 1
+
+def find_group(groups: dict, left_side: str, right_side: str) -> Union[int, tuple]:
+    """Return a group id:
+        - if both strings are new create a new group
+        - if one of the two strings has already received a group_id, return that group id.
+        - if both strings have already received a group_id, return a tuple with tese two ids.
+
+    Args:
+        groups (dict): previously formed groups
+        left_side (str): first string for comparison
+        right_side (str): second string for comparison
+
+    Returns:
+        Union[int, None]: a group_id or a tuple of group_ids
+    """
+    # Both strings have already received a group_id, return a tuple with tese two ids
+    if left_side in groups and right_side in groups:
+        return (groups[left_side], groups[right_side])
+    # One of the two strings has already received a group_id, return that group id.
+    elif left_side in groups:
+        return groups[left_side]
+    elif right_side in groups:
+        return groups[right_side]
+    # Create a new group
+    else:
+        return create_new_group_id(groups)
+
+def add_pair_to_dict(groups: dict, groupId_imputation: dict, left_side: str, right_side: str):
+    """Assign a group id to two strings (left_side, right_side)
+
+    Args:
+        groups (dict): previously formed groups
+        groupId_imputation (dict): groups to merge
+        left_side (str): first string to which a group must be assigned
+        right_side (str): second string to which a group must be assigned
+    """
+    # Get group_id(s) to assign
+    group_id = find_group(groups, left_side, right_side)
+    # if there is a unique group_id, assign it to both strings
+    if isinstance(group_id, int):
+        groups[left_side] = group_id
+        groups[right_side] = group_id
+    # if there are two distinct group_ids, add these two id to a dict as key and value. These groups will merge.
+    elif group_id[0] != group_id[1]:
+        groupId_imputation[group_id[0]] = group_id[1]
+
+def add_orphan_to_dict(groups: dict, string: str):
+    """Assign a group id to a string
+
+    Args:
+        groups (dict): previously formed groups
+        string (str): string to which a group must be assigned
+    """
+    # If string hasn't already been added to groups create a new group and set it as the value in the dictionnary
+    if string not in groups:
+        group_id = create_new_group_id(groups)
+        groups[string] = create_new_group_id(groups)
+        
 
 def get_nb_products_by_brand(datasets: list) -> pl.DataFrame:
     """Create a dataframe containing the number of products by brand sulgified.

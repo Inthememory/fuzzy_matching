@@ -1,18 +1,14 @@
 import polars as pl
 from sklearn.model_selection import train_test_split
-from src.similarity_features import get_token_set_ratio
 
 
 def create_input_for_prediction(sdf):
     input_for_prediction = sdf[0]
     for df in sdf[1:]:
-        input_for_prediction = (
-            input_for_prediction.join(df, on=["left_side", "right_side"], how="left")
-            .filter(pl.col("left_side") != pl.col("right_side"))
-            .fill_null(0)
-        )
-    print(input_for_prediction.shape)
-    return get_token_set_ratio(input_for_prediction)
+        input_for_prediction = input_for_prediction.join(
+            df, on=["left_side", "right_side"], how="left"
+        ).fill_null(0)
+    return input_for_prediction
 
 
 def label_dataset(dataset, labeled_pairs):

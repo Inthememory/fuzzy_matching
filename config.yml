@@ -34,12 +34,11 @@ unknown_brands:
 - "SANSMARQUE"
 - "SANS MARQUE"
 - "BIO"
+- 'MARQUE NATIONALE'
 
-generic_words : ["classique", "original", "origine",  "selection", "artisanal", "brasserie", "conserverie", "biscuiterie", "confiserie", "laboratoire", "fromagerie", "charcuterie", "domaine", "chateau", "maison", "casa", "creperie", "ferme", "vergers", "cafe", "salaisons", "moulin", "traiteur", "rucher", "jardin", "pasta", "saveurs", "delices", "petit", "saint", "gourmand", "gourmet", "bio", "pere", "france", "equitable"
-# "special"
-]
+generic_words : ["classique", "original", "origine",  "selection", "artisanal", "brasserie", "conserverie", "biscuiterie", "confiserie", "laboratoire", "fromagerie", "charcuterie", "domaine", "chateau", "maison", "casa", "creperie", "ferme", "vergers", "cafe", "salaisons", "moulin", "traiteur", "rucher", "jardin", "pasta", "saveurs", "delices", "petit", "saint", "gourmand", "gourmet", "bio", "pere", "france", "equitable", "special", 'recette']
 
-sl_replacements : [["&", "et"]]
+sl_replacements : [["&", "et"], ["1", "un "], ["2", "deux "], ["3", "trois "], ["4", "quatre "], ["5", "cinq "], ["6", "six "], ["7", "sept "], ["8", "huit "], ["9", "neuf "], ["10", "dix "]]
 
 classification_levels: 
   - 0
@@ -50,11 +49,10 @@ classification_most_relevant_level: 2
 
 indicators_var:
 - "similarity_syntax_ngram"
-- "similarity_syntax_words"
-- "similarity_semantic"
 - "similarity_classification"
 - "similarity_classification_words"
-- "token_set_ratio"
+- "fuzzy_ratio"
+- "discounted_levenshtein"
 
 label_var :
 - "left_side"

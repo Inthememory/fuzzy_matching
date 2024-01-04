@@ -1,13 +1,6 @@
 from src.preprocessing.dataset import Dataset, DatasetsMerged
+from src.similarity_features import Similarity
 
-from src.similarity_features import (
-    similarity_classification,
-    similarity_classification_words,
-    similarity_semantic,
-    similarity_syntax_ngram,
-    similarity_syntax_words,
-    get_token_set_ratio,
-)
 from src.models import (
     create_input_for_prediction,
     launch_training,

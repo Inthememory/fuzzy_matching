@@ -162,3 +162,5 @@ cython_debug/
 # csv files
 *.csv
 *.parquet
+
+test.py
