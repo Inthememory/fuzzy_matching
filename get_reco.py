@@ -1,5 +1,6 @@
 import polars as pl
 import argparse
+from loguru import logger
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -53,4 +54,4 @@ def similarity_top_n(brand: str, n: int) -> list:
     return df_similarity_top_n.rows(named=True)
 
 
-print(similarity_top_n(brand, nb_matches))
+logger.info(f"Top {nb_matches} matches : \n {similarity_top_n(brand, nb_matches)}")
