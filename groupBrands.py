@@ -1,31 +1,13 @@
 import polars as pl
-import numpy as np
 import sys
-import yaml
-import argparse
 from loguru import logger
-import pickle
 import os
 
-from french_lefff_lemmatizer.french_lefff_lemmatizer import FrenchLefffLemmatizer
-from nltk.corpus import stopwords
-
-from fuzzy_matching import Dataset, DatasetsMerged, Similarity
-from fuzzy_matching import (
-    create_input_for_prediction,
-    launch_training,
-    get_predictions,
-    evaluate_model,
-    group_similar_strings,
-    add_master_brand,
-)
+from fuzzy_matching import group_similar_strings, add_master_brand
 
 
 # Initialise paths
-DATA_RAW_PATH = "data/raw/"
 DATA_PROCESSED_PATH = "data/processed/"
-MODELS_PATH = "models/"
-MODEL_NAME = "xgb_model"
 
 # Initialise logs format
 logger.remove(0)
