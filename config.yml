@@ -40,7 +40,7 @@ unknown_brands:
 - "BIO"
 - 'MARQUE NATIONALE'
 
-generic_words : ["classique", "original", "origine",  "selection", "artisanal", "brasserie", "conserverie", "biscuiterie", "confiserie", "laboratoire", "fromagerie", "charcuterie", "domaine", "chateau", "maison", "casa", "creperie", "ferme", "vergers", "cafe", "salaisons", "moulin", "traiteur", "rucher", "jardin", "pasta", "saveurs", "delices", "petit", "saint", "gourmand", "gourmet", "bio", "pere", "france", "equitable", "special", 'recette']
+generic_words : ["classique", "original", "origine",  "selection", "artisanal", "brasserie", "conserverie", "biscuiterie", "confiserie", "laboratoire", "fromagerie", "charcuterie", "brasserie", "parapharmacie", "atelier", "domaine", "chateau", "maison","jardin","casa", "creperie", "ferme", "vergers", "cafe", "salaisons", "moulin", "traiteur", "rucher", "jardin", "pasta", "saveur", "delice", "petit", "saint", "gourmand", "gourmet", "bio", "pere", "france", "equitable", "special", 'recette', 'of', 'by', 'DI']
 
 sl_replacements : 
 - ["&", "et"]

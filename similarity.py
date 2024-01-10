@@ -9,7 +9,6 @@ import os
 
 from french_lefff_lemmatizer.french_lefff_lemmatizer import FrenchLefffLemmatizer
 from nltk.corpus import stopwords
-from sentence_transformers import SentenceTransformer
 
 from fuzzy_matching import Dataset, DatasetsMerged, Similarity
 from fuzzy_matching import (
@@ -50,7 +49,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Set loguru LEVEL
-    logger.configure(handlers=[{"sink": sys.stderr, "level": "DEBIG"}])
+    logger.configure(handlers=[{"sink": sys.stderr, "level": "DEBUG"}])
 
     # Load the configuration file and set parameters
     logger.debug("Loading YAML configuration file")
@@ -114,6 +113,13 @@ if __name__ == "__main__":
         brands_updated, ["brand_desc_slug", "brand_desc_slug_updated"]
     )
     logger.debug(f"brands_cross_join : {brands_cross_join.shape}")
+
+    # Calculate the number of product by brand and the best retailer
+    nb_products_by_brand = datasets_merged.get_nb_products_by_brand()
+    nb_products_by_brand.write_csv(
+        f"{DATA_PROCESSED_PATH}nb_products_by_brand.csv", separator=";"
+    )
+    logger.debug(f"nb_products_by_brand : {nb_products_by_brand.shape}")
 
     ## 2. Build similarity features
     logger.debug("Build features")
@@ -255,67 +261,4 @@ if __name__ == "__main__":
     predictions = get_predictions(xgb_model, input_prediction_completed, config)
     predictions.write_csv(
         f"{DATA_PROCESSED_PATH}xgb_model_predictions.csv", separator=";"
-    )
-
-    ## 7. Create groups
-    logger.debug("Create groups")
-
-    # Pair brands with similar products if more than two datasets
-    if len(datasets) > 1:
-        brands_with_same_products_paired = (
-            datasets_merged.pair_brands_with_same_products()
-        )
-        print(
-            f"brands_with_same_products_paired : {brands_with_same_products_paired.shape}"
-        )
-        brands_with_same_products_paired.write_csv(
-            f"{DATA_PROCESSED_PATH}brands_with_same_products_paired.csv", separator=";"
-        )
-    else:
-        schema = {"left_side": pl.Utf8, "right_side": pl.Utf8}
-        brands_with_same_products_paired = pl.DataFrame(schema=schema)
-
-    # Load predictions
-    df_input_groups = (
-        pl.concat(
-            [
-                predictions.select(
-                    pl.col("left_side"),
-                    pl.col("right_side"),
-                    pl.col("proba_1").cast(float).alias("similarity"),
-                ),
-                # brands_with_same_products_paired.select(
-                #     pl.col("left_side"),
-                #     pl.col("right_side"),
-                #     pl.lit(1.0).alias("similarity"),
-                # ),
-            ]
-        )
-        .groupby(pl.col("left_side"), pl.col("right_side"))
-        .agg(pl.col("similarity").max())
-    )
-
-    # Load existing groups
-    if os.path.exists(f"{DATA_PROCESSED_PATH}res_group_full.csv"):
-        groups_init = pl.read_csv(
-            f"{DATA_PROCESSED_PATH}res_group_full.csv", separator=";"
-        )
-    else:
-        groups_init = None
-
-    # Groups similar brands
-    res_group = group_similar_strings(
-        df_input_groups, groups_init=groups_init, min_similarity=0.8
-    ).sort(by="group_name")
-
-    logger.info(
-        f"Nb brands : {res_group.shape[0]}, nb groups : {res_group.select('group_name').unique().shape[0]}"
-    )
-
-    # Select a master brand
-    res_group_with_master = add_master_brand(datasets, res_group)
-
-    # Write results
-    res_group_with_master.write_csv(
-        f"{DATA_PROCESSED_PATH}res_group_full.csv", separator=";"
     )

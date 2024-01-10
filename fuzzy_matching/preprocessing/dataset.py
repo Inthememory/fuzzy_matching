@@ -401,6 +401,34 @@ class DatasetsMerged:
             + [pl.col(f"{col}_right") for col in cols]
         )
 
+    def get_nb_products_by_brand(self) -> pl.DataFrame:
+        """Create a dataframe containing the number of products by brand sulgified.
+
+        Returns:
+            pl.Dataframe: dataframe listing brand slugified and products
+        """
+        return (
+            pl.concat(
+                [
+                    dataset.select(
+                        pl.col("product_id"),
+                        pl.col("brand_desc_slug"),
+                        pl.lit(f"{i}").alias("retailer_id"),
+                    )
+                    for i, dataset in enumerate(self.sdf)
+                ],
+                how="vertical",
+            )
+            .unique()
+            .groupby("brand_desc_slug")
+            .agg(
+                [
+                    pl.count("product_id").alias("count"),
+                    pl.min("retailer_id").alias("retailer_id"),
+                ]
+            )
+        )
+
     @staticmethod
     def deduplicate_sentence(sentence: str) -> str:
         sentence_tokenized = nltk.tokenize.word_tokenize(sentence)

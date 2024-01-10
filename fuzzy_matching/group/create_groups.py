@@ -3,7 +3,8 @@ import polars as pl
 import numpy as np
 from typing import Union, Dict
 
-def group_similar_strings( 
+
+def group_similar_strings(
     df: pl.dataframe,
     groups_init: Union[pl.DataFrame, None],
     min_similarity: float = 0.7,
@@ -24,7 +25,7 @@ def group_similar_strings(
         groups = {}
     else:
         # Get a Python dict from columns  "name", "group_name" of groups_init dataframe (e.g. {name1: groupe_name1})
-        groups = dict(groups_init.select( "name", "group_name").iter_rows())
+        groups = dict(groups_init.select("name", "group_name").iter_rows())
 
     # Instantiate empty dict from group_id imputation (groups that will be merged)
     groupId_imputation = {}
@@ -71,6 +72,7 @@ def create_new_group_id(groups: dict) -> int:
     else:
         return max(list(groups.values())) + 1
 
+
 def find_group(groups: dict, left_side: str, right_side: str) -> Union[int, tuple]:
     """Return a group id:
         - if both strings are new create a new group
@@ -97,7 +99,10 @@ def find_group(groups: dict, left_side: str, right_side: str) -> Union[int, tupl
     else:
         return create_new_group_id(groups)
 
-def add_pair_to_dict(groups: dict, groupId_imputation: dict, left_side: str, right_side: str):
+
+def add_pair_to_dict(
+    groups: dict, groupId_imputation: dict, left_side: str, right_side: str
+):
     """Assign a group id to two strings (left_side, right_side)
 
     Args:
@@ -116,6 +121,7 @@ def add_pair_to_dict(groups: dict, groupId_imputation: dict, left_side: str, rig
     elif group_id[0] != group_id[1]:
         groupId_imputation[group_id[0]] = group_id[1]
 
+
 def add_orphan_to_dict(groups: dict, string: str):
     """Assign a group id to a string
 
@@ -127,72 +133,31 @@ def add_orphan_to_dict(groups: dict, string: str):
     if string not in groups:
         group_id = create_new_group_id(groups)
         groups[string] = create_new_group_id(groups)
-        
-
-def get_nb_products_by_brand(datasets: list) -> pl.DataFrame:
-    """Create a dataframe containing the number of products by brand sulgified.
-
-    Args:
-        datasets (list): list of datasets containing products, brands and classifications
-
-    Returns:
-        pl.Dataframe: dataframe listing brand slugified and products
-    """
-    return (
-        pl.concat(
-            [
-                dataset.select(
-                    pl.col("product_id"),
-                    pl.col("brand_desc_slug"),
-                    pl.lit(f"{i}").alias("retailer_id"),
-                )
-                for i, dataset in enumerate(datasets)
-            ],
-            how="vertical",
-        )
-        .unique()
-        .groupby("brand_desc_slug")
-        .agg(
-            [
-                pl.count("product_id").alias("count"),
-                pl.min("retailer_id").alias("retailer_id"),
-            ]
-        )
-    )
 
 
-def add_master_brand(datasets: list, res_group: pl.DataFrame) -> pl.DataFrame:
+def add_master_brand(
+    nb_products_by_brand: pl.DataFrame, res_group: pl.DataFrame
+) -> pl.DataFrame:
     """Add master brand_desc_slug for each group of brands
 
     Args:
-        datasets (list): list of datasets containing products, brands
+        nb_products_by_brand (pl.DataFrame): dataframe that contains the number of product by brand
         res_group (pl.DataFrame): dataframe containing the group_name for each brand
 
     Returns:
         pl.DataFrame: dataframe containing the group_name and the master brand for each brand
     """
-    master_brand_nb_products = (
-        res_group.select("group_name", pl.col("name").alias("brand_desc_slug"))
-        .join(
-            get_nb_products_by_brand(datasets).select("brand_desc_slug", "count"),
-            "brand_desc_slug",
-            "left",
-        )
-        .sort(["count"], descending=[True])
-        .unique(subset=["group_name"], keep="first", maintain_order=True)
-        .select(
-            "group_name", pl.col("brand_desc_slug").alias("master_brand_nb_products")
-        )
-    )
 
     master_brand_origin = (
         res_group.select("group_name", pl.col("name").alias("brand_desc_slug"))
-        .join(get_nb_products_by_brand(datasets), "brand_desc_slug", "left")
+        .join(
+            nb_products_by_brand,
+            "brand_desc_slug",
+            "left",
+        )
         .sort(["retailer_id", "count"], descending=[False, True])
         .unique(subset=["group_name"], keep="first", maintain_order=True)
         .select("group_name", pl.col("brand_desc_slug").alias("master_brand_origin"))
     )
 
-    return res_group.join(master_brand_nb_products, ["group_name"], "left").join(
-        master_brand_origin, ["group_name"], "left"
-    )
+    return res_group.join(master_brand_origin, ["group_name"], "left")
