@@ -11,11 +11,11 @@ from fuzzywuzzy import fuzz
 from fuzzy_matching.distances import DiscountedLevenshtein, FuzzyWuzzyTokenSort
 
 
-class Similarity:    
+class Similarity:
     """This class handle similarity computation
 
     Args:
-        dataset (pl.dataframe) : 
+        dataset (pl.dataframe) :
         name (str) : name of the similarity
         label_col (str) : name of the column that contains brand desc
         col (Union[str, None]) : name of the column to use to compute similarity
@@ -48,6 +48,11 @@ class Similarity:
 
     @property
     def col(self):
+        """_summary_
+
+        Returns:
+            _type_: _description_
+        """
         return self._col
 
     @col.setter
@@ -121,7 +126,7 @@ class Similarity:
         dense_output: bool = False,
         pairwise: bool = True,
         min_similarity: float = 0.0,
-    )->Union[np.array, csr_matrix]:
+    ) -> Union[np.array, csr_matrix]:
         """Calculate cosine similarity.
            cosine_sim_sparse[i, j] represents the cosine similarity between row i and row j.
 
@@ -144,7 +149,7 @@ class Similarity:
             self._init_pairwise_dataset(min_similarity)
         return self.cossim_dataset
 
-    def _init_sparse_matrix(self)->Union[np.array, csr_matrix]:
+    def _init_sparse_matrix(self) -> Union[np.array, csr_matrix]:
         """Compressed as sparse matrix
 
         Returns:
@@ -162,7 +167,7 @@ class Similarity:
                 self.sparse_dataset = csr_matrix(self.dataset.drop(self._label_col))
         return self.sparse_dataset
 
-    def _init_tfidf_dataset(self)->pl.dataframe:
+    def _init_tfidf_dataset(self) -> pl.dataframe:
         """Convert a collection of string to a dataframe of TF-IDF features.
         Returns:
             pl.dataframe: dataframe of TF-IDF features.
@@ -190,7 +195,7 @@ class Similarity:
         self.tfidf_dataset = df_tfidfvect.select(sorted(df_tfidfvect.columns))
         return self.tfidf_dataset
 
-    def _init_pairwise_dataset(self, min_similarity:float) -> pl.DataFrame:
+    def _init_pairwise_dataset(self, min_similarity: float) -> pl.DataFrame:
         """Convert a sparse matrix containing probability of similarity into dataframe with labels and probability of similarity above a threshold
 
         Args:
@@ -232,9 +237,11 @@ class Similarity:
             )
             return self.pairwise_dataset
         else:
-            raise ValueError(f"self.cossim_dataset and self.labels must be instantiated")
+            raise ValueError(
+                f"self.cossim_dataset and self.labels must be instantiated"
+            )
 
-    def sparsity(self)->float:
+    def sparsity(self) -> float:
         """Returns the sparsity of a dataset (the proportion of zero-value elements)
 
         Raises:
@@ -267,8 +274,7 @@ class Similarity:
             pl.DataFrame: dataset with discounted_levenshtein and partial_ratio string distance measures
         """
         return (
-            dataset
-            .with_columns(pl.struct(pl.col([col_left, col_right])).alias("comb"))
+            dataset.with_columns(pl.struct(pl.col([col_left, col_right])).alias("comb"))
             .with_columns(
                 pl.col("comb")
                 .apply(lambda df: fuzz.partial_ratio(df[col_left], df[col_right]) / 100)
@@ -276,7 +282,9 @@ class Similarity:
             )
             .with_columns(
                 pl.col("comb")
-                .apply(lambda df: DiscountedLevenshtein().sim(df[col_left], df[col_right]))
+                .apply(
+                    lambda df: DiscountedLevenshtein().sim(df[col_left], df[col_right])
+                )
                 .alias("discounted_levenshtein")
             )
             .drop("comb")

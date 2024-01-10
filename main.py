@@ -5,6 +5,7 @@ import yaml
 import argparse
 from loguru import logger
 import pickle
+import os
 
 from french_lefff_lemmatizer.french_lefff_lemmatizer import FrenchLefffLemmatizer
 from nltk.corpus import stopwords
@@ -34,7 +35,6 @@ logger.add(
     format="{time} | {level} | {message} | {extra}",
 )
 
-
 if __name__ == "__main__":
     # Add argparse for the command line:
     parser = argparse.ArgumentParser()
@@ -49,12 +49,15 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
+    # Set loguru LEVEL
+    logger.configure(handlers=[{"sink": sys.stderr, "level": "DEBIG"}])
+
     # Load the configuration file and set parameters
-    logger.info("Loading YAML configuration file")
+    logger.debug("Loading YAML configuration file")
     with open("config.yml", "r") as file:
         config = yaml.safe_load(file)
 
-    unknown_brands = config["generic_words"]
+    unknown_brands = config["unknown_brands"]
     generic_words = config["generic_words"]
     list_stopwords = [word for word in stopwords.words("french") if len(word) > 1]
     lemmatizer = FrenchLefffLemmatizer()
@@ -81,7 +84,7 @@ if __name__ == "__main__":
     brand_classification_dummy = datasets_merged.get_brand_classification_dummy(
         levels=config["classification_levels"]
     )
-    print(f"brand_classification_dummy : {brand_classification_dummy.shape}")
+    logger.debug(f"brand_classification_dummy : {brand_classification_dummy.shape}")
 
     # Merge datasets and clean a specified level column.
     brand_classification_words = datasets_merged.get_brand_classification_words(
@@ -89,8 +92,7 @@ if __name__ == "__main__":
         lemmatizer=lemmatizer,
         list_stopwords=list_stopwords,
     )
-    print(f"brand_classification_words : {brand_classification_words.shape}")
-
+    logger.debug(f"brand_classification_words : {brand_classification_words.shape}")
     # Write results
     brand_classification_words.write_csv(
         f"{DATA_PROCESSED_PATH}brand_classification_words.csv", separator=";"
@@ -103,20 +105,22 @@ if __name__ == "__main__":
         generic_words=generic_words,
         replacements=sl_replacements,
     )
-    print(f"brands_updated : {brands_updated.shape}")
+    logger.debug(f"brands_updated : {brands_updated.shape}")
+    # Write results
+    brands_updated.write_csv(f"{DATA_PROCESSED_PATH}brands_updated.csv", separator=";")
 
     # Create all pairs of brands with a cartesian product
     brands_cross_join = DatasetsMerged.cross_join(
         brands_updated, ["brand_desc_slug", "brand_desc_slug_updated"]
     )
-    print(f"brands_cross_join : {brands_cross_join.shape}")
+    logger.debug(f"brands_cross_join : {brands_cross_join.shape}")
 
     ## 2. Build similarity features
-    logger.info("Build features")
+    logger.debug("Build features")
     # Initialise an empty list to stores similarity datasets
     similarities_features = []
 
-    logger.info("similarity_syntax_ngram")
+    logger.debug("similarity_syntax_ngram")
     # Create Similarity object
     similarity_syntax_ngram = Similarity(
         brands_updated,
@@ -131,10 +135,12 @@ if __name__ == "__main__":
     # Compute cosin similarity
     similarity_syntax_ngram.cos_sim(min_similarity=0.2)
     similarities_features.append(similarity_syntax_ngram.pairwise_dataset)
-    print(f"sparsity : {similarity_syntax_ngram.sparsity()}")
-    print(similarity_syntax_ngram.pairwise_dataset.shape)
+    logger.debug(
+        f"sparsity : {similarity_syntax_ngram.sparsity()}, \
+                 shape {similarity_syntax_ngram.pairwise_dataset.shape}"
+    )
 
-    logger.info("similarity_classification")
+    logger.debug("similarity_classification")
     # Create Similarity object
     similarity_classification = Similarity(
         brand_classification_dummy, name="classification", label_col="brand_desc_slug"
@@ -142,7 +148,10 @@ if __name__ == "__main__":
     # Compute cosinm similarity
     similarity_classification.cos_sim()
     similarities_features.append(similarity_classification.pairwise_dataset)
-    print(f"sparsity : {similarity_classification.sparsity()}")
+    logger.debug(
+        f"sparsity : {similarity_classification.sparsity()}, \
+                 shape {similarity_classification.pairwise_dataset.shape}"
+    )
 
     logger.info("similarity_classification_words")
     # Create Similarity object
@@ -158,7 +167,10 @@ if __name__ == "__main__":
     # Compute cosin similarity
     similarity_classification_words.cos_sim()
     similarities_features.append(similarity_classification_words.pairwise_dataset)
-    print(f"sparsity : {similarity_classification_words.sparsity()}")
+    logger.debug(
+        f"sparsity : {similarity_classification_words.sparsity()}, \
+                 shape {similarity_classification_words.pairwise_dataset.shape}"
+    )
 
     ## 3. Create input for prediction
     similarities_features.append(
@@ -168,16 +180,18 @@ if __name__ == "__main__":
     )
 
     input_prediction_init = create_input_for_prediction(similarities_features)
-    print(f"input_prediction_init: {input_prediction_init.shape}")
+    logger.debug(f"input_prediction_init shape: {input_prediction_init.shape}")
 
     # Add distance_metrics
-    logger.info("similarity_fuzzy")
+    logger.debug("similarity_fuzzy")
     input_prediction_completed = Similarity.distance_metrics(
         input_prediction_init,
         col_left="brand_desc_slug_updated_left",
         col_right="brand_desc_slug_updated_right",
     )
-    print(f"input_prediction_completed: {input_prediction_completed.shape}")
+    logger.debug(
+        f"input_prediction_completed shape: {input_prediction_completed.shape}"
+    )
     input_prediction_completed.write_csv(
         f"{DATA_PROCESSED_PATH}input_prediction_completed.csv", separator=";"
     )
@@ -194,7 +208,7 @@ if __name__ == "__main__":
     )
 
     if args.training:
-        logger.info("Training of XGBoost Classifier")
+        logger.debug("Training of XGBoost Classifier")
         labeled_pairs = pl.read_csv(
             f"{DATA_RAW_PATH}training_dataset.csv", separator=";"
         )
@@ -235,7 +249,7 @@ if __name__ == "__main__":
     )
 
     ## 6. Make predictions on the whole dataset
-    logger.info("Predict")
+    logger.debug("Predict")
     xgb_model = pickle.load(open(f"{MODELS_PATH}{MODEL_NAME}.pickle", "rb"))
 
     predictions = get_predictions(xgb_model, input_prediction_completed, config)
@@ -244,7 +258,7 @@ if __name__ == "__main__":
     )
 
     ## 7. Create groups
-    logger.info("Create groups")
+    logger.debug("Create groups")
 
     # Pair brands with similar products if more than two datasets
     if len(datasets) > 1:
@@ -282,7 +296,12 @@ if __name__ == "__main__":
     )
 
     # Load existing groups
-    groups_init = pl.read_csv(f"{DATA_PROCESSED_PATH}res_group_full.csv", separator=";")
+    if os.path.exists(f"{DATA_PROCESSED_PATH}res_group_full.csv"):
+        groups_init = pl.read_csv(
+            f"{DATA_PROCESSED_PATH}res_group_full.csv", separator=";"
+        )
+    else:
+        groups_init = None
 
     # Groups similar brands
     res_group = group_similar_strings(

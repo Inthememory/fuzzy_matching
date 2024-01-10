@@ -128,7 +128,6 @@ class Dataset:
             dataset_filtered = dataset_filtered.filter(
                 pl.col("level0").is_in(self.level0_included)
             )
-        print(self.dataset_cleaned.shape, dataset_filtered.shape)
         return dataset_filtered
 
     @staticmethod

@@ -1,7 +1,10 @@
 import polars as pl
 import argparse
 from loguru import logger
+import sys
+import os
 
+# Parse arg from the command line:
 parser = argparse.ArgumentParser()
 parser.add_argument(
     "--brand",
@@ -18,9 +21,10 @@ parser.add_argument(
 )
 
 args = parser.parse_args()
+FILE_PATH = "data/processed/xgb_model_predictions.csv"
 
-brand = args.brand
-nb_matches = args.nb_matches
+# Set loguru LEVEL
+logger.configure(handlers=[{"sink": sys.stderr, "level": "INFO"}])
 
 
 def similarity_top_n(brand: str, n: int) -> list:
@@ -35,7 +39,7 @@ def similarity_top_n(brand: str, n: int) -> list:
     """
     ## Load similarity results
     df_similarity = (
-        pl.read_csv(f"data/processed/xgb_model_predictions.csv", separator=";")
+        pl.read_csv(FILE_PATH, separator=";")
         .filter((pl.col("left_side") == brand) | (pl.col("right_side") == brand))
         .sort(["proba_1"], descending=True)
     )
@@ -54,4 +58,9 @@ def similarity_top_n(brand: str, n: int) -> list:
     return df_similarity_top_n.rows(named=True)
 
 
-logger.info(f"Top {nb_matches} matches : \n {similarity_top_n(brand, nb_matches)}")
+if os.path.exists(FILE_PATH):
+    logger.info(
+        f"Top {args.nb_matches} matches : \n {similarity_top_n(args.brand, args.nb_matches)}"
+    )
+else:
+    raise ValueError(f'"{FILE_PATH}" does not exist')
