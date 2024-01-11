@@ -67,6 +67,7 @@ class Dataset:
             dataset.with_columns(pl.lit(self.retailer).alias("retailer"))
             .with_columns(pl.col("product_id").str.zfill(13))
             .with_columns(pl.col("brand_desc").str.to_uppercase().str.strip())
+            .filter(~pl.col("brand_desc").str.contains(self.retailer.upper()))
             .with_columns(
                 pl.col("brand_desc")
                 .apply(

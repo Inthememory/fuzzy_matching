@@ -16,8 +16,6 @@ from fuzzy_matching import (
     launch_training,
     get_predictions,
     evaluate_model,
-    group_similar_strings,
-    add_master_brand,
 )
 
 
@@ -67,8 +65,8 @@ if __name__ == "__main__":
     logger.info(f"Create datasets : {args.datasets}")
     datasets = [
         Dataset(
-            pl.read_parquet(f"data/raw/{dataset}.parquet"),
-            dataset,
+            df=pl.read_parquet(f"data/raw/{dataset}.parquet"),
+            retailer=dataset,
             nb_levels=config["retailer"][dataset]["nb_levels"],
             levels_col="crumb",
             level0_included=config["retailer"][dataset]["level0"],
