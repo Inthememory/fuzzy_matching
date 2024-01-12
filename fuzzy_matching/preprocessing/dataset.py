@@ -2,6 +2,7 @@ import polars as pl
 from slugify import slugify
 import string
 import nltk
+from typing import Union
 from itertools import combinations
 
 
@@ -68,6 +69,7 @@ class Dataset:
             .with_columns(pl.col("product_id").str.zfill(13))
             .with_columns(pl.col("brand_desc").str.to_uppercase().str.strip())
             .filter(~pl.col("brand_desc").str.contains(self.retailer.upper()))
+            .filter(~pl.col("brand_desc").str.contains("AUTRE MARQUE"))
             .with_columns(
                 pl.col("brand_desc")
                 .apply(
@@ -439,6 +441,14 @@ class DatasetsMerged:
         return " ".join(word.upper() for word in sentence_deduplicated)
 
     @staticmethod
+    def sort_sentence(sentence: str) -> str:
+        sentence_tokenized = nltk.tokenize.word_tokenize(sentence)
+        sentence_tokenized_sorted = sorted(
+            sentence_tokenized, key=lambda x: (len(x), x)
+        )
+        return " ".join(word.upper() for word in sentence_tokenized_sorted)
+
+    @staticmethod
     def lemmatize_sentence(sentence: str, lemmatizer) -> str:
         sentence_tokenized = nltk.tokenize.word_tokenize(sentence)
         sentence_lemmatized = [
@@ -512,6 +522,7 @@ class DatasetsMerged:
                     lambda x: DatasetsMerged.remove_generic_words(x, generic_words)
                 )
             )
+            .filter(pl.col(f"{col}_updated") != "")
             .with_columns(
                 pl.col(f"{col}_updated").apply(
                     lambda x: slugify(x, separator=" ", replacements=replacements)
@@ -520,6 +531,11 @@ class DatasetsMerged:
             .with_columns(
                 pl.col(f"{col}_updated").apply(
                     lambda x: DatasetsMerged.deduplicate_sentence(x)
+                )
+            )
+            .with_columns(
+                pl.col(f"{col}_updated").apply(
+                    lambda x: DatasetsMerged.sort_sentence(x)
                 )
             )
             .with_columns(
@@ -561,6 +577,11 @@ class DatasetsMerged:
             .with_columns(
                 pl.col(f"{col}_updated").apply(
                     lambda x: DatasetsMerged.deduplicate_sentence(x)
+                )
+            )
+            .with_columns(
+                pl.col(f"{col}_updated").apply(
+                    lambda x: DatasetsMerged.sort_sentence(x)
                 )
             )
         )

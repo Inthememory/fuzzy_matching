@@ -55,8 +55,14 @@ if __name__ == "__main__":
         config = yaml.safe_load(file)
 
     unknown_brands = config["unknown_brands"]
-    generic_words = config["generic_words"]
-    list_stopwords = [word for word in stopwords.words("french") if len(word) > 1]
+    generic_words = (
+        pl.read_csv(
+            f"{DATA_RAW_PATH}generic_words.csv", separator=";", has_header=False
+        )
+        .to_series()
+        .to_list()
+    )
+    list_stopwords = [word for word in stopwords.words("french")] + ["a", "o"]
     lemmatizer = FrenchLefffLemmatizer()
     sl_replacements = config["sl_replacements"]
 
@@ -157,7 +163,7 @@ if __name__ == "__main__":
                  shape {similarity_classification.pairwise_dataset.shape}"
     )
 
-    logger.info("similarity_classification_words")
+    logger.debug("similarity_classification_words")
     # Create Similarity object
     similarity_classification_words = Similarity(
         brand_classification_words,

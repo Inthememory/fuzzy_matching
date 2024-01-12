@@ -8,7 +8,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 from fuzzywuzzy import fuzz
-from fuzzy_matching.distances import DiscountedLevenshtein, FuzzyWuzzyTokenSort
+import nltk
 
 
 class Similarity:
@@ -222,11 +222,11 @@ class Similarity:
                     if self.labels[sparserows[index]] > self.labels[sparsecols[index]]:
                         left_side.append(self.labels[sparserows[index]])
                         right_side.append(self.labels[sparsecols[index]])
-                        similarity.append(self.cossim_dataset.data[index])
+                        similarity.append(round(self.cossim_dataset.data[index], 3))
                     else:
                         right_side.append(self.labels[sparserows[index]])
                         left_side.append(self.labels[sparsecols[index]])
-                        similarity.append(self.cossim_dataset.data[index])
+                        similarity.append(round(self.cossim_dataset.data[index], 3))
 
             self.pairwise_dataset = pl.DataFrame(
                 {
@@ -260,6 +260,18 @@ class Similarity:
         return round(1.0 - np.count_nonzero(df) / (df.shape[0] * df.shape[1]), 3)
 
     @staticmethod
+    def LCWords(s1, s2):
+        common_substrings = []
+        s1_tokens = nltk.tokenize.word_tokenize(s1)
+        s2_tokens = nltk.tokenize.word_tokenize(s2)
+        if len(s1_tokens) > len(s2_tokens):
+            longest, shortest = s1_tokens, s2_tokens
+        else:
+            longest, shortest = s2_tokens, s1_tokens
+        common_substrings = [word for word in shortest if word in longest]
+        return (len(common_substrings) ** 2) / len(longest)
+
+    @staticmethod
     def distance_metrics(
         dataset: pl.DataFrame, col_left: str, col_right: str
     ) -> pl.DataFrame:
@@ -273,7 +285,7 @@ class Similarity:
         Returns:
             pl.DataFrame: dataset with discounted_levenshtein and partial_ratio string distance measures
         """
-        return (
+        dataset_w_distanceMetrics = (
             dataset.with_columns(pl.struct(pl.col([col_left, col_right])).alias("comb"))
             .with_columns(
                 pl.col("comb")
@@ -282,10 +294,25 @@ class Similarity:
             )
             .with_columns(
                 pl.col("comb")
-                .apply(
-                    lambda df: DiscountedLevenshtein().sim(df[col_left], df[col_right])
-                )
-                .alias("discounted_levenshtein")
+                .apply(lambda df: fuzz.partial_ratio(df[col_left], df[col_right]) / 100)
+                .alias("fuzzy_ratio")
             )
+            .with_columns(
+                pl.col("comb")
+                .apply(lambda df: Similarity.LCWords(df[col_left], df[col_right]))
+                .alias("lcwords")
+            )
+            .with_columns(pl.col("fuzzy_ratio").round(3))
+            .with_columns(pl.col("lcwords").round(3))
             .drop("comb")
         )
+
+        # Normalize the lcwords column between 0 and 1
+        min_value = dataset_w_distanceMetrics["lcwords"].min()
+        max_value = dataset_w_distanceMetrics["lcwords"].max()
+
+        dataset_w_distanceMetrics = dataset_w_distanceMetrics.with_columns(
+            pl.col("lcwords").apply(lambda x: (x - min_value) / (max_value - min_value))
+        )
+
+        return dataset_w_distanceMetrics

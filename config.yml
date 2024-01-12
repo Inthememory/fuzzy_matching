@@ -40,8 +40,6 @@ unknown_brands:
 - "BIO"
 - 'MARQUE NATIONALE'
 
-generic_words : ["classique", "original", "origine",  "selection", "artisanal", "brasserie", "conserverie", "biscuiterie", "confiserie", "laboratoire", "fromagerie", "charcuterie", "brasserie", "parapharmacie", "atelier", "domaine", "chateau", "maison","jardin","casa", "creperie", "ferme", "vergers", "cafe", "salaisons", "moulin", "traiteur", "rucher", "jardin", "pasta", "saveur", "delice", "petit", "saint", "gourmand", "gourmet", "bio", "pere", "france", "equitable", "special", 'recette', 'of', 'by', 'di']
-
 sl_replacements : 
 - ["&", "et"]
 - ["1", "un "]
@@ -69,7 +67,8 @@ indicators_var:
 # - "similarity_classification"
 - "similarity_classification_words"
 - "fuzzy_ratio"
-- "discounted_levenshtein"
+# - "discounted_levenshtein"
+- "lcwords"
 
 label_var :
 - "left_side"
