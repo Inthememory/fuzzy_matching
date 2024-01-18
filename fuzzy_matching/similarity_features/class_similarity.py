@@ -294,11 +294,6 @@ class Similarity:
             )
             .with_columns(
                 pl.col("comb")
-                .apply(lambda df: fuzz.partial_ratio(df[col_left], df[col_right]) / 100)
-                .alias("fuzzy_ratio")
-            )
-            .with_columns(
-                pl.col("comb")
                 .apply(lambda df: Similarity.LCWords(df[col_left], df[col_right]))
                 .alias("lcwords")
             )
