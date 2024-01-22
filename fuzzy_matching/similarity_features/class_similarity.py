@@ -289,15 +289,17 @@ class Similarity:
             dataset.with_columns(pl.struct(pl.col([col_left, col_right])).alias("comb"))
             .with_columns(
                 pl.col("comb")
-                .apply(lambda df: fuzz.partial_ratio(df[col_left], df[col_right]) / 100)
-                .alias("fuzzy_ratio")
+                .apply(
+                    lambda df: fuzz.token_set_ratio(df[col_left], df[col_right]) / 100
+                )
+                .alias("token_set_ratio")
             )
             .with_columns(
                 pl.col("comb")
                 .apply(lambda df: Similarity.LCWords(df[col_left], df[col_right]))
                 .alias("lcwords")
             )
-            .with_columns(pl.col("fuzzy_ratio").round(3))
+            .with_columns(pl.col("token_set_ratio").round(3))
             .with_columns(pl.col("lcwords").round(3))
             .drop("comb")
         )

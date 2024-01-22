@@ -64,10 +64,8 @@ classification_most_relevant_levels:
 
 indicators_var:
 - "similarity_syntax_ngram"
-# - "similarity_classification"
 - "similarity_classification_words"
-- "fuzzy_ratio"
-# - "discounted_levenshtein"
+- "token_set_ratio"
 - "lcwords"
 
 label_var :

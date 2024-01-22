@@ -83,11 +83,11 @@ if __name__ == "__main__":
     ]
     datasets_merged = DatasetsMerged(datasets)
 
-    # Merge datasets and convert classification variable into dummy variables.
-    brand_classification_dummy = datasets_merged.get_brand_classification_dummy(
-        levels=config["classification_levels"]
-    )
-    logger.debug(f"brand_classification_dummy : {brand_classification_dummy.shape}")
+    # # Merge datasets and convert classification variable into dummy variables.
+    # brand_classification_dummy = datasets_merged.get_brand_classification_dummy(
+    #     levels=config["classification_levels"]
+    # )
+    # logger.debug(f"brand_classification_dummy : {brand_classification_dummy.shape}")
 
     # Merge datasets and clean a specified level column.
     brand_classification_words = datasets_merged.get_brand_classification_words(
@@ -150,18 +150,18 @@ if __name__ == "__main__":
                  shape {similarity_syntax_ngram.pairwise_dataset.shape}"
     )
 
-    logger.debug("similarity_classification")
-    # Create Similarity object
-    similarity_classification = Similarity(
-        brand_classification_dummy, name="classification", label_col="brand_desc_slug"
-    )
-    # Compute cosinm similarity
-    similarity_classification.cos_sim()
-    similarities_features.append(similarity_classification.pairwise_dataset)
-    logger.debug(
-        f"sparsity : {similarity_classification.sparsity()}, \
-                 shape {similarity_classification.pairwise_dataset.shape}"
-    )
+    # logger.debug("similarity_classification")
+    # # Create Similarity object
+    # similarity_classification = Similarity(
+    #     brand_classification_dummy, name="classification", label_col="brand_desc_slug"
+    # )
+    # # Compute cosinm similarity
+    # similarity_classification.cos_sim()
+    # similarities_features.append(similarity_classification.pairwise_dataset)
+    # logger.debug(
+    #     f"sparsity : {similarity_classification.sparsity()}, \
+    #              shape {similarity_classification.pairwise_dataset.shape}"
+    # )
 
     logger.debug("similarity_classification_words")
     # Create Similarity object
