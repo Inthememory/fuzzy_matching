@@ -136,13 +136,13 @@ def add_orphan_to_dict(groups: dict, string: str):
 
 
 def add_master_brand(
-    nb_products_by_brand: pl.DataFrame, res_group: pl.DataFrame
+    res_group: pl.DataFrame, nb_products_by_brand: pl.DataFrame
 ) -> pl.DataFrame:
     """Add master brand_desc_slug for each group of brands
 
     Args:
-        nb_products_by_brand (pl.DataFrame): dataframe that contains the number of product by brand
         res_group (pl.DataFrame): dataframe containing the group_name for each brand
+        nb_products_by_brand (pl.DataFrame): dataframe that contains the number of product by brand
 
     Returns:
         pl.DataFrame: dataframe containing the group_name and the master brand for each brand

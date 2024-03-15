@@ -16,7 +16,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Load features
-    if os.path.exists(f"{DATA_PROCESSED_PATH}xgb_model_predictions_test.csv"):
+    if os.path.exists(f"{DATA_PROCESSED_PATH}xgb_model_predictions_{args.set}.csv"):
         predictions = pl.read_csv(
             f"{DATA_PROCESSED_PATH}xgb_model_predictions_{args.set}.csv",
             separator=";",
@@ -41,4 +41,4 @@ if __name__ == "__main__":
 
     print(stats)
     # Write results
-    stats.write_csv(f"{DATA_PROCESSED_PATH}{args.set}_stats.csv", separator=";")
+    stats.write_csv(f"{DATA_PROCESSED_PATH}/stats/{args.set}_stats.csv", separator=";")

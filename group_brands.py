@@ -19,7 +19,7 @@ logger.add(
 if __name__ == "__main__":
     logger.debug("Load data")
 
-    # Load Pair brands with similar products if more than two datasets
+    # Load pair brands with similar products if more than two datasets
     if os.path.exists(f"{DATA_PROCESSED_PATH}brands_with_same_products_paired.csv"):
         brands_with_same_products_paired = pl.read_csv(
             f"{DATA_PROCESSED_PATH}brands_with_same_products_paired.csv", separator=";"
@@ -61,11 +61,11 @@ if __name__ == "__main__":
                     pl.col("right_side"),
                     pl.col("proba_1").cast(float).alias("similarity"),
                 ),
-                # brands_with_same_products_paired.select(
-                #     pl.col("left_side"),
-                #     pl.col("right_side"),
-                #     pl.lit(1.0).alias("similarity"),
-                # ),
+                brands_with_same_products_paired.select(
+                    pl.col("left_side"),
+                    pl.col("right_side"),
+                    pl.lit(1.0).alias("similarity"),
+                ),
             ]
         )
         .groupby(pl.col("left_side"), pl.col("right_side"))

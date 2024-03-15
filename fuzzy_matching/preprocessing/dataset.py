@@ -2,7 +2,6 @@ import polars as pl
 from slugify import slugify
 import string
 import nltk
-from typing import Union
 from itertools import combinations
 
 
@@ -24,7 +23,7 @@ class Dataset:
         df: pl.DataFrame,
         retailer: str,
         nb_levels: int,
-        levels_col: str = "crumb",
+        levels_col: str,
         level0_included: list = [],
         level1_excluded: list = [],
         replacements_brand: list = [],
@@ -36,25 +35,23 @@ class Dataset:
         self.level0_included = level0_included
         self.level1_excluded = level1_excluded
         self.replacements_brand = replacements_brand
-        self.dataset_cleaned = self.clean_dataset()
+        self.dataset_preprocessed = None
 
-    def clean_dataset(self) -> pl.DataFrame:
+    def preprocess(self) -> pl.DataFrame:
         """Proceed to a panel of transformations to clean the dataset
 
         Returns:
             pl.Dataframe: a polars Dataframe preprocessed
         """
+        # Select columns
+        dataset = self.df.select(
+            pl.col("ean").alias("product_id"),
+            pl.col("brand").alias("brand_desc"),
+            self.levels_col,
+        )
 
         # Explode levels into multiple columns
-        dataset = self.expand_levels(
-            self.df.select(
-                pl.col("ean").alias("product_id"),
-                pl.col("brand_name").alias("brand_desc"),
-                "crumb",
-            ),
-            self.levels_col,
-            self.nb_levels,
-        )
+        dataset = self.expand_levels(dataset, self.levels_col, self.nb_levels)
 
         # Filter dataset
         dataset = (
@@ -67,6 +64,9 @@ class Dataset:
         dataset = (
             dataset.with_columns(pl.lit(self.retailer).alias("retailer"))
             .with_columns(pl.col("product_id").str.zfill(13))
+            .with_columns(
+                pl.col("brand_desc").apply(lambda x: Dataset.remove_non_ascii(x))
+            )
             .with_columns(pl.col("brand_desc").str.to_uppercase().str.strip())
             .filter(~pl.col("brand_desc").str.contains(self.retailer.upper()))
             .filter(~pl.col("brand_desc").str.contains("AUTRE MARQUE"))
@@ -81,7 +81,7 @@ class Dataset:
             )
         )
 
-        # Select columns
+        # Upper level columns
         dataset = dataset.select(
             ["retailer", "product_id", "brand_desc", "brand_desc_slug"]
             + [
@@ -89,6 +89,8 @@ class Dataset:
                 for i in range(self.nb_levels)
             ]
         )
+
+        self.dataset_preprocessed = dataset
         return dataset
 
     @staticmethod
@@ -122,7 +124,8 @@ class Dataset:
             pl.Dataframe: a dataframe filtered
         """
         dataset_filtered = (
-            self.dataset_cleaned.filter(~pl.col("level1").is_in(self.level1_excluded))
+            self.preprocess()
+            .filter(~pl.col("level1").is_in(self.level1_excluded))
             .filter(~pl.col("brand_desc_slug").is_in([item for item in unknown_brands]))
             .filter(pl.col("brand_desc_slug").str.contains("[a-zA-Z]+"))
             .filter(pl.col("brand_desc_slug").str.contains("\w{3,}"))
@@ -150,6 +153,10 @@ class Dataset:
             .upper()
             .strip()
         )
+
+    @staticmethod
+    def remove_non_ascii(string):
+        return string.encode("ascii", "ignore").decode("utf8").casefold()
 
 
 class DatasetsMerged:
@@ -243,7 +250,7 @@ class DatasetsMerged:
             .max()
         )
         self.brand_classification_dummy = brands_classification_dummy_agregated
-        return self.brand_classification_dummy
+        return brands_classification_dummy_agregated
 
     def get_brand_classification_words(
         self, levels: list, lemmatizer, list_stopwords: list = []
@@ -294,7 +301,7 @@ class DatasetsMerged:
             brands_classification_words, lemmatizer, list_stopwords
         )
         self.brand_classification_words = brands_classification_words_updated
-        return self.brand_classification_words
+        return brands_classification_words_updated
 
     def extract_brands(
         self,
@@ -325,7 +332,7 @@ class DatasetsMerged:
             brands_df, lemmatizer, list_stopwords, generic_words, replacements
         )
         self.brands_updated = brands_df_updated
-        return self.brands_updated
+        return brands_df_updated
 
     def pair_brands_with_same_products(self) -> pl.DataFrame:
         """Pairs two brands related two the same product.

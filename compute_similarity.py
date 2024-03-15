@@ -4,26 +4,16 @@ import sys
 import yaml
 import argparse
 from loguru import logger
-import pickle
-import os
 
 from french_lefff_lemmatizer.french_lefff_lemmatizer import FrenchLefffLemmatizer
 from nltk.corpus import stopwords
 
 from fuzzy_matching import Dataset, DatasetsMerged, Similarity
-from fuzzy_matching import (
-    create_input_for_prediction,
-    launch_training,
-    get_predictions,
-    evaluate_model,
-)
-
+from fuzzy_matching import create_input_for_prediction
 
 # Initialise paths
-DATA_RAW_PATH = "data/raw/"
+DATA_RAW_PATH = "data/raw_v2/"
 DATA_PROCESSED_PATH = "data/processed/"
-MODELS_PATH = "models/"
-MODEL_NAME = "xgb_model"
 
 # Initialise logs format
 logger.remove(0)
@@ -38,18 +28,14 @@ if __name__ == "__main__":
     parser.add_argument(
         "--datasets", type=str, required=True, nargs="+", help="Datasets listing."
     )
-    parser.add_argument(
-        "--training",
-        default=True,
-        action=argparse.BooleanOptionalAction,
-        help="Execute training.",
-    )
     args = parser.parse_args()
 
     # Set loguru LEVEL
     logger.configure(handlers=[{"sink": sys.stderr, "level": "DEBUG"}])
 
-    # Load the configuration file and set parameters
+    # --------------------------------------------------
+    # 0. Load the configuration file and set parameters
+    # --------------------------------------------------
     logger.debug("Loading YAML configuration file")
     with open("config.yml", "r") as file:
         config = yaml.safe_load(file)
@@ -62,20 +48,23 @@ if __name__ == "__main__":
         .to_series()
         .to_list()
     )
-    list_stopwords = [word for word in stopwords.words("french")] + ["a", "o"]
+    list_stopwords = [word for word in stopwords.words("french")] + ["a", "o", "s"]
     lemmatizer = FrenchLefffLemmatizer()
     sl_replacements = config["sl_replacements"]
 
-    ## 1. Preprocessing: calculate input datasets
+    # -------------------------------------------
+    # 1. Preprocessing: calculate input datasets
+    # -------------------------------------------
     # Create a list of clean datasets to proceed
     logger.info(f"Create datasets : {args.datasets}")
     datasets = [
         Dataset(
-            df=pl.read_parquet(f"data/raw/{dataset}.parquet"),
+            df=pl.read_parquet(f"data/raw_v2/{dataset}.parquet"),
             retailer=dataset,
             nb_levels=config["retailer"][dataset]["nb_levels"],
-            levels_col="crumb",
-            level0_included=config["retailer"][dataset]["level0"],
+            levels_col="hierarchy",
+            # level0_included=config["retailer"][dataset]["level0"],
+            level0_included=[],
             level1_excluded=config["retailer"][dataset]["level1_to_delete"],
             replacements_brand=[["&", "et"]],
         ).filter_dataset(unknown_brands=unknown_brands)
@@ -89,7 +78,7 @@ if __name__ == "__main__":
     # )
     # logger.debug(f"brand_classification_dummy : {brand_classification_dummy.shape}")
 
-    # Merge datasets and clean a specified level column.
+    # Merge datasets and create a sentence with specified levels.
     brand_classification_words = datasets_merged.get_brand_classification_words(
         levels=config["classification_most_relevant_levels"],
         lemmatizer=lemmatizer,
@@ -125,7 +114,9 @@ if __name__ == "__main__":
     )
     logger.debug(f"nb_products_by_brand : {nb_products_by_brand.shape}")
 
-    ## 2. Build similarity features
+    # -----------------------------
+    # 2. Build similarity features
+    # -----------------------------
     logger.debug("Build features")
     # Initialise an empty list to stores similarity datasets
     similarities_features = []
@@ -179,10 +170,12 @@ if __name__ == "__main__":
     similarities_features.append(similarity_classification_words.pairwise_dataset)
     logger.debug(
         f"sparsity : {similarity_classification_words.sparsity()}, \
-                 shape {similarity_classification_words.pairwise_dataset.shape}"
+          shape {similarity_classification_words.pairwise_dataset.shape}"
     )
 
-    ## 3. Create input for prediction
+    # -------------------------------
+    # 3. Create input for prediction
+    # -------------------------------
     similarities_features.append(
         brands_cross_join.rename({"brand_desc_slug_left": "left_side"}).rename(
             {"brand_desc_slug_right": "right_side"}
@@ -204,65 +197,4 @@ if __name__ == "__main__":
     )
     input_prediction_completed.write_csv(
         f"{DATA_PROCESSED_PATH}input_prediction_completed.csv", separator=";"
-    )
-    input_prediction_completed = input_prediction_completed.drop(
-        "brand_desc_slug_updated_left", "brand_desc_slug_updated_right"
-    )
-
-    ## 4. Fit the model (XGBoost Classifier) if training = True
-    # Set variables
-    indicators_var, label_var, target_var = (
-        config["indicators_var"],
-        config["label_var"],
-        config["target_var"],
-    )
-
-    if args.training:
-        logger.debug("Training of XGBoost Classifier")
-        labeled_pairs = pl.read_csv(
-            f"{DATA_RAW_PATH}training_dataset.csv", separator=";"
-        )
-
-        # Make predictions and evaluate model
-        xgb_model, test_predictions = launch_training(
-            input_prediction_completed,
-            labeled_pairs,
-            indicators_var,
-            label_var,
-            target_var,
-        )
-
-        test_predictions.write_csv(
-            f"{DATA_PROCESSED_PATH}xgb_model_predictions_test.csv", separator=";"
-        )
-
-        # Save model
-        pickle.dump(xgb_model, open(f"{MODELS_PATH}{MODEL_NAME}.pickle", "wb"))
-
-    ## 5. Evaluate the model on a validation dataset
-    val_dataset = input_prediction_completed.join(
-        pl.read_csv(f"{DATA_RAW_PATH}validation_dataset.csv", separator=";"),
-        on=["left_side", "right_side"],
-        how="inner",
-    )
-    val_predictions = get_predictions(xgb_model, val_dataset, config)
-
-    val_predictions.write_csv(
-        f"{DATA_PROCESSED_PATH}xgb_model_predictions_val.csv", separator=";"
-    )
-
-    log_loss_val, roc_auc_score_val, confusion_matrix_val = evaluate_model(
-        xgb_model,
-        val_dataset.select(indicators_var),
-        val_dataset.select(target_var),
-        "val",
-    )
-
-    ## 6. Make predictions on the whole dataset
-    logger.debug("Predict")
-    xgb_model = pickle.load(open(f"{MODELS_PATH}{MODEL_NAME}.pickle", "rb"))
-
-    predictions = get_predictions(xgb_model, input_prediction_completed, config)
-    predictions.write_csv(
-        f"{DATA_PROCESSED_PATH}xgb_model_predictions.csv", separator=";"
     )

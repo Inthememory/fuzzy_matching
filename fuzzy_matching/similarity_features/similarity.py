@@ -269,7 +269,7 @@ class Similarity:
         else:
             longest, shortest = s2_tokens, s1_tokens
         common_substrings = [word for word in shortest if word in longest]
-        return (len(common_substrings) ** 2) / len(longest)
+        return len(common_substrings) / len(longest)
 
     @staticmethod
     def distance_metrics(
@@ -290,6 +290,24 @@ class Similarity:
             .with_columns(
                 pl.col("comb")
                 .apply(
+                    lambda df: fuzz.partial_token_set_ratio(df[col_left], df[col_right])
+                    / 100
+                )
+                .alias("partial_token_set_ratio")
+            )
+            .with_columns(
+                pl.col("comb")
+                .apply(
+                    lambda df: fuzz.partial_token_sort_ratio(
+                        df[col_left], df[col_right]
+                    )
+                    / 100
+                )
+                .alias("partial_token_sort_ratio")
+            )
+            .with_columns(
+                pl.col("comb")
+                .apply(
                     lambda df: fuzz.token_set_ratio(df[col_left], df[col_right]) / 100
                 )
                 .alias("token_set_ratio")
@@ -299,8 +317,6 @@ class Similarity:
                 .apply(lambda df: Similarity.LCWords(df[col_left], df[col_right]))
                 .alias("lcwords")
             )
-            .with_columns(pl.col("token_set_ratio").round(3))
-            .with_columns(pl.col("lcwords").round(3))
             .drop("comb")
         )
 
